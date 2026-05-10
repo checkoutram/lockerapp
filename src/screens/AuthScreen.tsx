@@ -1,0 +1,302 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Lock, Fingerprint, AlertTriangle, RotateCcw } from 'lucide-react';
+import { useApp } from '@/context/AppContext';
+import { SecureStore, AsyncStorage } from '@/utils/storage';
+import { digestStringAsync } from '@/utils/crypto';
+import { APP_NAME } from '@/types';
+
+export default function AuthScreen() {
+  const { navigate, setAuthenticated } = useApp();
+  const [pin, setPin] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockoutTime, setLockoutTime] = useState(30);
+  const [showForgotDialog, setShowForgotDialog] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [error, setError] = useState('');
+  const [shake, setShake] = useState(false);
+  const pinRef = useRef('');
+  const submittingRef = useRef(false);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Debounce delay in ms - time to wait after last digit before auto-submitting
+  const AUTO_SUBMIT_DELAY = 600;
+
+  // Check biometric preference
+  useEffect(() => {
+    AsyncStorage.getItem('biometric').then((val) => {
+      setBiometricEnabled(val === 'true');
+    });
+  }, []);
+
+  // Check for existing lockout
+  useEffect(() => {
+    const checkLockout = async () => {
+      const lockoutEnd = await AsyncStorage.getItem('lockout_end');
+      if (lockoutEnd) {
+        const remaining = Math.ceil((parseInt(lockoutEnd) - Date.now()) / 1000);
+        if (remaining > 0) {
+          setIsLocked(true);
+          setLockoutTime(remaining);
+        } else {
+          await AsyncStorage.removeItem('lockout_end');
+          setAttempts(0);
+        }
+      }
+    };
+    checkLockout();
+  }, []);
+
+  // Lockout countdown
+  useEffect(() => {
+    if (isLocked && lockoutTime > 0) {
+      lockoutTimerRef.current = setInterval(() => {
+        setLockoutTime((prev) => {
+          if (prev <= 1) {
+            setIsLocked(false);
+            setAttempts(0);
+            AsyncStorage.removeItem('lockout_end');
+            if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current);
+    };
+  }, [isLocked, lockoutTime]);
+
+  const doSubmit = useCallback(async (pinToCheck: string) => {
+    if (submittingRef.current) return;
+    if (pinToCheck.length < 4) return; // Minimum 4 digits
+    submittingRef.current = true;
+
+    const storedHash = await SecureStore.getItemAsync('pin');
+    const inputHash = await digestStringAsync('SHA-256', pinToCheck);
+
+    if (inputHash === storedHash) {
+      setAuthenticated(true);
+      await AsyncStorage.removeItem('lockout_end');
+      navigate('home');
+    } else {
+      pinRef.current = '';
+      setPin('');
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      setError(`Incorrect PIN. ${5 - newAttempts} attempts remaining.`);
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+
+      if (newAttempts >= 5) {
+        setIsLocked(true);
+        setLockoutTime(30);
+        const lockoutEnd = Date.now() + 30000;
+        await AsyncStorage.setItem('lockout_end', lockoutEnd.toString());
+      }
+    }
+    submittingRef.current = false;
+  }, [attempts, setAuthenticated, navigate]);
+
+  const scheduleAutoSubmit = useCallback((currentPin: string) => {
+    // Clear any existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    // Only schedule if we have at least 4 digits
+    if (currentPin.length >= 4) {
+      debounceTimerRef.current = setTimeout(() => {
+        doSubmit(currentPin);
+      }, AUTO_SUBMIT_DELAY);
+    }
+  }, [doSubmit]);
+
+  const handlePinInput = useCallback((value: string) => {
+    if (isLocked || submittingRef.current) return;
+    setError('');
+
+    if (pinRef.current.length < 6) {
+      const newPin = pinRef.current + value;
+      pinRef.current = newPin;
+      setPin(newPin);
+      scheduleAutoSubmit(newPin);
+    }
+  }, [isLocked, scheduleAutoSubmit]);
+
+  const handleBackspace = useCallback(() => {
+    if (isLocked || submittingRef.current) return;
+    setError('');
+    // Cancel pending auto-submit
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    pinRef.current = pinRef.current.slice(0, -1);
+    setPin(pinRef.current);
+    // Re-schedule if still >= 4 digits
+    scheduleAutoSubmit(pinRef.current);
+  }, [isLocked, scheduleAutoSubmit]);
+
+  const handleBiometric = useCallback(async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setTimeout(() => {
+      setAuthenticated(true);
+      navigate('home');
+      submittingRef.current = false;
+    }, 800);
+  }, [setAuthenticated, navigate]);
+
+  const handleWipeData = useCallback(async () => {
+    await SecureStore.deleteItemAsync('pin');
+    await AsyncStorage.removeItem('biometric');
+    await AsyncStorage.removeItem('items');
+    await AsyncStorage.removeItem('lockout_end');
+    setShowForgotDialog(false);
+    navigate('setup');
+  }, [navigate]);
+
+  // Auto-trigger biometric on load if enabled
+  useEffect(() => {
+    if (biometricEnabled && !isLocked) {
+      const timer = setTimeout(() => {
+        handleBiometric();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [biometricEnabled, isLocked, handleBiometric]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  const keypadNumbers = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+  return (
+    <div className="h-full flex flex-col vault-gradient">
+      {/* Header */}
+      <div className="flex items-center justify-center pt-8 pb-4">
+        <div className="flex items-center gap-2">
+          <Lock className="w-4 h-4 text-[#C9A84C]" />
+          <span className="text-sm text-[#C9A84C] font-medium" style={{ fontFamily: "'Playfair Display', serif" }}>
+            {APP_NAME}
+          </span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 flex flex-col items-center px-8">
+        {/* Icon */}
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#C9A84C]/20 to-[#C9A84C]/5 border border-[#C9A84C]/30 flex items-center justify-center mb-6">
+          <Lock className="w-8 h-8 text-[#C9A84C]" strokeWidth={1.5} />
+        </div>
+
+        <h2 className="text-xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+          Enter PIN
+        </h2>
+        <p className="text-sm text-[#8A94A6] text-center mb-8">
+          Unlock your secure locker
+        </p>
+
+        {/* PIN Dots */}
+        <div className={`flex items-center gap-3 mb-4 ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className={i < pin.length ? 'pin-dot-filled' : 'pin-dot-empty'} />
+          ))}
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-400 mb-4 text-center animate-fade-in">{error}</p>
+        )}
+
+        {/* Lockout overlay */}
+        {isLocked ? (
+          <div className="flex flex-col items-center gap-4 my-6">
+            <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-red-400" />
+            </div>
+            <p className="text-lg font-bold text-red-400">
+              {Math.floor(lockoutTime / 60)}:{String(lockoutTime % 60).padStart(2, '0')}
+            </p>
+            <p className="text-sm text-[#8A94A6] text-center">
+              Too many failed attempts.<br />Please wait before trying again.
+            </p>
+          </div>
+        ) : (
+          /* Numeric Keypad */
+          <div className="grid grid-cols-3 gap-3 w-full max-w-[280px] mb-6">
+            {keypadNumbers.map((num) => (
+              <button key={num} onClick={() => handlePinInput(num)}
+                className="w-full aspect-square rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-xl font-semibold text-white active:bg-[#1A3A5C] active:scale-95 transition-all flex items-center justify-center"
+              >{num}</button>
+            ))}
+            {biometricEnabled ? (
+              <button onClick={handleBiometric}
+                className="w-full aspect-square rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] active:bg-[#1A3A5C] active:scale-95 transition-all flex items-center justify-center"
+              >
+                <Fingerprint className="w-6 h-6" />
+              </button>
+            ) : (
+              <div className="w-full aspect-square" />
+            )}
+            <button onClick={() => handlePinInput('0')}
+              className="w-full aspect-square rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-xl font-semibold text-white active:bg-[#1A3A5C] active:scale-95 transition-all flex items-center justify-center"
+            >0</button>
+            <button onClick={handleBackspace}
+              className="w-full aspect-square rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white active:bg-[#1A3A5C] active:scale-95 transition-all flex items-center justify-center"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" />
+                <line x1="18" y1="9" x2="12" y2="15" />
+                <line x1="12" y1="9" x2="18" y2="15" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Forgot PIN */}
+        {!isLocked && (
+          <button onClick={() => setShowForgotDialog(true)}
+            className="text-sm text-[#8A94A6] hover:text-[#C9A84C] transition-colors mt-2"
+          >
+            Forgot PIN?
+          </button>
+        )}
+      </div>
+
+      {/* Forgot PIN Dialog */}
+      {showForgotDialog && (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-6 animate-fade-in">
+          <div className="bg-[#111D2E] border border-[#1A3A5C] rounded-3xl p-6 w-full max-w-[340px]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Reset PIN</h3>
+            </div>
+            <p className="text-sm text-[#8A94A6] mb-2">
+              This will permanently delete all your locker data including items and photos.
+            </p>
+            <p className="text-sm text-red-400 mb-6">This action cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowForgotDialog(false)}
+                className="flex-1 py-3 rounded-2xl bg-[#1A3A5C] text-white text-sm font-medium active:scale-95 transition-transform"
+              >Cancel</button>
+              <button onClick={handleWipeData}
+                className="flex-1 py-3 rounded-2xl bg-red-500 text-white text-sm font-medium active:scale-95 transition-transform flex items-center justify-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
