@@ -78,7 +78,7 @@ export default function HomeScreen() {
             {APP_NAME}
           </span>
         </div>
-        <button onClick={() => navigate('settings')}
+        <button onClick={() => navigate('settings')} aria-label="Settings"
           className="w-10 h-10 rounded-xl bg-[#111D2E] border border-[#1A3A5C] flex items-center justify-center active:scale-95 transition-transform"
         >
           <Settings className="w-5 h-5 text-[#8A94A6]" />
@@ -202,7 +202,7 @@ export default function HomeScreen() {
       </div>
 
       {/* FAB */}
-      <button onClick={() => navigate('addItem')}
+      <button onClick={() => navigate('addItem')} aria-label="Add Item"
         className="absolute bottom-6 right-5 w-14 h-14 rounded-full bg-[#C9A84C] flex items-center justify-center shadow-lg active:scale-95 transition-transform z-10 animate-pulse-gold"
       >
         <Plus className="w-6 h-6 text-[#0A1628]" strokeWidth={2.5} />

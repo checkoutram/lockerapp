@@ -5,34 +5,68 @@
  */
 
 import { Preferences } from '@capacitor/preferences';
+import { Capacitor } from '@capacitor/core';
 import type { LockerItem } from '@/types';
 import { savePhoto, deletePhoto } from './photoStorage';
+
+// Check if running on native platform
+const isNative = Capacitor.isNativePlatform();
+
+// ---- Preferences with localStorage fallback for web ----
+const Prefs = {
+  async get(key: string): Promise<{ value: string | null }> {
+    if (isNative) {
+      return Preferences.get({ key });
+    }
+    // Web fallback: localStorage
+    try {
+      const val = localStorage.getItem(key);
+      return { value: val };
+    } catch {
+      return { value: null };
+    }
+  },
+  async set(key: string, value: string): Promise<void> {
+    if (isNative) {
+      await Preferences.set({ key, value });
+    } else {
+      localStorage.setItem(key, value);
+    }
+  },
+  async remove(key: string): Promise<void> {
+    if (isNative) {
+      await Preferences.remove({ key });
+    } else {
+      localStorage.removeItem(key);
+    }
+  },
+};
 
 // ---- Backward-compatible wrappers for existing code ----
 
 export const SecureStore = {
   async setItemAsync(key: string, value: string): Promise<void> {
-    await Preferences.set({ key: `secure_${key}`, value });
+    await Prefs.set(`secure_${key}`, value);
   },
   async getItemAsync(key: string): Promise<string | null> {
-    const { value } = await Preferences.get({ key: `secure_${key}` });
+    const { value } = await Prefs.get(`secure_${key}`);
     return value;
   },
   async deleteItemAsync(key: string): Promise<void> {
-    await Preferences.remove({ key: `secure_${key}` });
+    await Prefs.remove(`secure_${key}`);
   },
 };
 
 export const AsyncStorage = {
   async setItem(key: string, value: string): Promise<void> {
-    await Preferences.set({ key: `async_${key}`, value });
+    await Prefs.set(`async_${key}`, value);
   },
   async getItem(key: string): Promise<string | null> {
-    const { value } = await Preferences.get({ key: `async_${key}` });
+    const { value } = await Prefs.get(`async_${key}`);
     return value;
   },
   async removeItem(key: string): Promise<void> {
-    await Preferences.remove({ key: `async_${key}` });
+    await Prefs.remove(`async_${key}`);
   },
 };
 
@@ -51,7 +85,7 @@ const ITEMS_KEY = 'vlocker_items';
 
 export async function getItems(): Promise<LockerItem[]> {
   try {
-    const { value } = await Preferences.get({ key: ITEMS_KEY });
+    const { value } = await Prefs.get(ITEMS_KEY);
     if (!value) return [];
     const items: LockerItem[] = JSON.parse(value);
     // Filter out items with missing required fields
@@ -92,7 +126,7 @@ export async function deleteItem(id: string): Promise<void> {
   }
 
   const filtered = items.filter((item) => item.id !== id);
-  await Preferences.set({ key: ITEMS_KEY, value: JSON.stringify(filtered) });
+  await Prefs.set(ITEMS_KEY, JSON.stringify(filtered));
 }
 
 export async function deleteAllItems(): Promise<void> {
@@ -110,7 +144,7 @@ export async function deleteAllItems(): Promise<void> {
       }
     }
   }
-  await Preferences.remove({ key: ITEMS_KEY });
+  await Prefs.remove(ITEMS_KEY);
 }
 
 /**
@@ -159,7 +193,7 @@ export async function saveItem(item: LockerItem): Promise<{ success: boolean; er
 
     const items = await getItems();
     items.push(itemToSave);
-    await Preferences.set({ key: ITEMS_KEY, value: JSON.stringify(items) });
+    await Prefs.set(ITEMS_KEY, JSON.stringify(items));
     return { success: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Save failed';
@@ -197,7 +231,7 @@ export async function updateItem(updatedItem: LockerItem): Promise<{ success: bo
     }
 
     items[index] = { ...updatedItem, photos: photoPaths, billPhotos: billPaths };
-    await Preferences.set({ key: ITEMS_KEY, value: JSON.stringify(items) });
+    await Prefs.set(ITEMS_KEY, JSON.stringify(items));
     return { success: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Update failed';
@@ -227,7 +261,7 @@ export async function exportData(): Promise<string> {
 // ---- SETTINGS ----
 export async function getSettings(): Promise<Record<string, unknown>> {
   try {
-    const { value } = await Preferences.get({ key: 'vlocker_settings' });
+    const { value } = await Prefs.get('vlocker_settings');
     return value ? JSON.parse(value) : {};
   } catch {
     return {};
@@ -235,23 +269,23 @@ export async function getSettings(): Promise<Record<string, unknown>> {
 }
 
 export async function saveSettings(settings: Record<string, unknown>): Promise<void> {
-  await Preferences.set({ key: 'vlocker_settings', value: JSON.stringify(settings) });
+  await Prefs.set('vlocker_settings', JSON.stringify(settings));
 }
 
 export async function clearAllData(): Promise<void> {
   await deleteAllItems();
-  await Preferences.remove({ key: 'vlocker_settings' });
-  await Preferences.remove({ key: 'vlocker_session' });
+  await Prefs.remove('vlocker_settings');
+  await Prefs.remove('vlocker_session');
 }
 
 // ---- SESSION ----
 export async function setSessionActive(active: boolean): Promise<void> {
-  await Preferences.set({ key: 'vlocker_session', value: JSON.stringify({ active, timestamp: Date.now() }) });
+  await Prefs.set('vlocker_session', JSON.stringify({ active, timestamp: Date.now() }));
 }
 
 export async function isSessionActive(): Promise<boolean> {
   try {
-    const { value } = await Preferences.get({ key: 'vlocker_session' });
+    const { value } = await Prefs.get('vlocker_session');
     if (!value) return false;
     const session = JSON.parse(value);
     // Check if session is within 30 minutes

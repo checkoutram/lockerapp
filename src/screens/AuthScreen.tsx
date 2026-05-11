@@ -19,18 +19,24 @@ export default function AuthScreen() {
   const submittingRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Flag to prevent auto-biometric after logout
+  const justLoggedOutRef = useRef(false);
 
-  // Debounce delay in ms - time to wait after last digit before auto-submitting
   const AUTO_SUBMIT_DELAY = 600;
 
-  // Check biometric preference
   useEffect(() => {
     AsyncStorage.getItem('biometric').then((val) => {
       setBiometricEnabled(val === 'true');
     });
+    // Check if we just logged out - if so, don't auto-trigger biometric
+    AsyncStorage.getItem('just_logged_out').then((val) => {
+      if (val === 'true') {
+        justLoggedOutRef.current = true;
+        AsyncStorage.removeItem('just_logged_out');
+      }
+    });
   }, []);
 
-  // Check for existing lockout
   useEffect(() => {
     const checkLockout = async () => {
       const lockoutEnd = await AsyncStorage.getItem('lockout_end');
@@ -48,7 +54,6 @@ export default function AuthScreen() {
     checkLockout();
   }, []);
 
-  // Lockout countdown
   useEffect(() => {
     if (isLocked && lockoutTime > 0) {
       lockoutTimerRef.current = setInterval(() => {
@@ -71,7 +76,7 @@ export default function AuthScreen() {
 
   const doSubmit = useCallback(async (pinToCheck: string) => {
     if (submittingRef.current) return;
-    if (pinToCheck.length < 4) return; // Minimum 4 digits
+    if (pinToCheck.length < 4) return;
     submittingRef.current = true;
 
     const storedHash = await SecureStore.getItemAsync('pin');
@@ -101,12 +106,10 @@ export default function AuthScreen() {
   }, [attempts, setAuthenticated, navigate]);
 
   const scheduleAutoSubmit = useCallback((currentPin: string) => {
-    // Clear any existing timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
-    // Only schedule if we have at least 4 digits
     if (currentPin.length >= 4) {
       debounceTimerRef.current = setTimeout(() => {
         doSubmit(currentPin);
@@ -129,14 +132,12 @@ export default function AuthScreen() {
   const handleBackspace = useCallback(() => {
     if (isLocked || submittingRef.current) return;
     setError('');
-    // Cancel pending auto-submit
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
     pinRef.current = pinRef.current.slice(0, -1);
     setPin(pinRef.current);
-    // Re-schedule if still >= 4 digits
     scheduleAutoSubmit(pinRef.current);
   }, [isLocked, scheduleAutoSubmit]);
 
@@ -159,17 +160,9 @@ export default function AuthScreen() {
     navigate('setup');
   }, [navigate]);
 
-  // Auto-trigger biometric on load if enabled
-  useEffect(() => {
-    if (biometricEnabled && !isLocked) {
-      const timer = setTimeout(() => {
-        handleBiometric();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [biometricEnabled, isLocked, handleBiometric]);
+  // REMOVED: Auto-trigger biometric - only triggers when user taps fingerprint button
+  // This fixes the logout issue where biometric auto-logs user back in
 
-  // Cleanup debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -180,7 +173,6 @@ export default function AuthScreen() {
 
   return (
     <div className="h-full flex flex-col vault-gradient">
-      {/* Header */}
       <div className="flex items-center justify-center pt-8 pb-4">
         <div className="flex items-center gap-2">
           <Lock className="w-4 h-4 text-[#C9A84C]" />
@@ -190,9 +182,7 @@ export default function AuthScreen() {
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 flex flex-col items-center px-8">
-        {/* Icon */}
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#C9A84C]/20 to-[#C9A84C]/5 border border-[#C9A84C]/30 flex items-center justify-center mb-6">
           <Lock className="w-8 h-8 text-[#C9A84C]" strokeWidth={1.5} />
         </div>
@@ -204,7 +194,6 @@ export default function AuthScreen() {
           Unlock your secure locker
         </p>
 
-        {/* PIN Dots */}
         <div className={`flex items-center gap-3 mb-4 ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div key={i} className={i < pin.length ? 'pin-dot-filled' : 'pin-dot-empty'} />
@@ -215,7 +204,6 @@ export default function AuthScreen() {
           <p className="text-xs text-red-400 mb-4 text-center animate-fade-in">{error}</p>
         )}
 
-        {/* Lockout overlay */}
         {isLocked ? (
           <div className="flex flex-col items-center gap-4 my-6">
             <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
@@ -229,7 +217,6 @@ export default function AuthScreen() {
             </p>
           </div>
         ) : (
-          /* Numeric Keypad */
           <div className="grid grid-cols-3 gap-3 w-full max-w-[280px] mb-6">
             {keypadNumbers.map((num) => (
               <button key={num} onClick={() => handlePinInput(num)}
@@ -253,14 +240,12 @@ export default function AuthScreen() {
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" />
-                <line x1="18" y1="9" x2="12" y2="15" />
-                <line x1="12" y1="9" x2="18" y2="15" />
+                <line x1="18" y1="9" x2="12" y2="15" /><line x1="12" y1="9" x2="18" y2="15" />
               </svg>
             </button>
           </div>
         )}
 
-        {/* Forgot PIN */}
         {!isLocked && (
           <button onClick={() => setShowForgotDialog(true)}
             className="text-sm text-[#8A94A6] hover:text-[#C9A84C] transition-colors mt-2"
@@ -270,7 +255,6 @@ export default function AuthScreen() {
         )}
       </div>
 
-      {/* Forgot PIN Dialog */}
       {showForgotDialog && (
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-6 animate-fade-in">
           <div className="bg-[#111D2E] border border-[#1A3A5C] rounded-3xl p-6 w-full max-w-[340px]">

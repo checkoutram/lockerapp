@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import type { ScreenName } from '@/types';
-import { SecureStore, setSessionActive } from '@/utils/storage';
+import { SecureStore, setSessionActive, AsyncStorage } from '@/utils/storage';
 
 interface AppContextType {
   screen: ScreenName;
@@ -97,6 +97,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     setIsAuthenticated(false);
     if (sessionTimerRef.current) clearTimeout(sessionTimerRef.current);
+    await AsyncStorage.setItem('just_logged_out', 'true');
     setScreen('auth');
   }, []);
 

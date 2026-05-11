@@ -11,6 +11,21 @@ export async function digestStringAsync(
   return hashHex;
 }
 
+// Hash a PIN for storage
+export async function hashPin(pin: string): Promise<string> {
+  return digestStringAsync('SHA-256', pin);
+}
+
+// Compare a PIN against stored hash
+export async function comparePin(pin: string): Promise<boolean> {
+  // Import SecureStore dynamically to avoid circular dependency
+  const { SecureStore } = await import('./storage');
+  const storedHash = await SecureStore.getItemAsync('pin');
+  if (!storedHash) return false;
+  const inputHash = await hashPin(pin);
+  return inputHash === storedHash;
+}
+
 // Generate UUID
 export function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
