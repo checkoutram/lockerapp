@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { saveItem } from '@/utils/storage';
 import { generateUUID } from '@/utils/crypto';
@@ -24,6 +24,50 @@ function isJewelCategory(c: string): boolean {
   return JEWEL_CATEGORIES.includes(c as MainCategory);
 }
 
+// Toast notification type
+type Toast = { id: number; message: string; type: 'success' | 'error' | 'info' };
+
+// Compress image file to base64 JPEG using canvas
+function compressImageFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const result = evt.target?.result as string;
+      if (!result) { reject(new Error('Failed to read file')); return; }
+
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let w = img.width;
+          let h = img.height;
+          // Resize to max 1200px (Samsung S24 takes huge photos)
+          const MAX_SIZE = 1200;
+          if (w > MAX_SIZE || h > MAX_SIZE) {
+            const ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(result); return; }
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.75);
+          resolve(compressed);
+        } catch (err) {
+          // If canvas fails, return original
+          resolve(result);
+        }
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = result;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function AddItemScreen() {
   const { goBack } = useApp();
   const [name, setName] = useState('');
@@ -42,11 +86,22 @@ export default function AddItemScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const photoGalleryRef = useRef<HTMLInputElement>(null);
-  const photoCameraRef = useRef<HTMLInputElement>(null);
-  const billGalleryRef = useRef<HTMLInputElement>(null);
-  const billCameraRef = useRef<HTMLInputElement>(null);
+  // Unique IDs for file inputs (needed for label association)
+  const photoCameraId = 'photo-camera-input';
+  const photoGalleryId = 'photo-gallery-input';
+  const billCameraId = 'bill-camera-input';
+  const billGalleryId = 'bill-gallery-input';
+
+  let toastIdCounter = 0;
+  const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
+    const id = ++toastIdCounter;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+  }, []);
 
   const availableSubTypes =
     isJewelCategory(category) ? JEWELLERY_SUBTYPES
@@ -108,121 +163,113 @@ export default function AddItemScreen() {
     return Object.keys(errs).length === 0;
   };
 
-  // Process photos: compress then IMMEDIATELY add to state for display
-  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // === PHOTO HANDLING - ROBUST VERSION FOR SAMSUNG ===
+  // Step 1: File input change handler
+  const handlePhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      addToast('No file selected', 'error');
+      return;
+    }
+
+    // Reset input so same file can be selected again
     e.target.value = '';
 
     const remainingSlots = 5 - photos.length;
-    if (remainingSlots <= 0) return;
+    if (remainingSlots <= 0) {
+      addToast('Maximum 5 photos allowed', 'error');
+      return;
+    }
 
     const toProcess = Math.min(files.length, remainingSlots);
+    addToast(`Processing ${toProcess} photo${toProcess > 1 ? 's' : ''}...`, 'info');
 
     for (let i = 0; i < toProcess; i++) {
       const file = files[i];
 
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        addToast(`Skipped: ${file.name} is not an image`, 'error');
+        continue;
+      }
+
       try {
-        // Use canvas compression to reduce size for localStorage
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (evt) => {
-            const result = evt.target?.result as string;
-            if (!result) { reject(new Error('Empty')); return; }
+        // Compress to base64 for storage
+        const dataUrl = await compressImageFile(file);
 
-            const img = new Image();
-            img.onload = () => {
-              let w = img.width;
-              let h = img.height;
-              if (w > 800 || h > 800) {
-                const ratio = Math.min(800 / w, 800 / h);
-                w = Math.round(w * ratio);
-                h = Math.round(h * ratio);
-              }
-              const canvas = document.createElement('canvas');
-              canvas.width = w;
-              canvas.height = h;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) { resolve(result); return; }
-              ctx.drawImage(img, 0, 0, w, h);
-              resolve(canvas.toDataURL('image/jpeg', 0.7));
-            };
-            img.onerror = () => resolve(result); // fallback to raw
-            img.src = result;
-          };
-          reader.onerror = () => reject(new Error('Read failed'));
-          reader.readAsDataURL(file);
-        });
+        // Validate the result
+        if (!dataUrl || !dataUrl.startsWith('data:')) {
+          addToast('Photo processing failed - invalid output', 'error');
+          continue;
+        }
 
-        // IMMEDIATELY add to state so thumbnail shows right away
+        // Add to state for display
         setPhotos((prev) => [...prev, dataUrl]);
+        addToast(`Photo ${i + 1} added`, 'success');
 
-      } catch {
-        setErrors((p) => ({ ...p, photo: `Photo ${i + 1} failed. Try another.` }));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        addToast(`Photo ${i + 1} failed: ${msg}`, 'error');
       }
     }
   };
 
   const removePhoto = (index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
+    addToast('Photo removed', 'info');
   };
 
-  const handleBillPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // === BILL PHOTO HANDLING ===
+  const handleBillFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      addToast('No file selected', 'error');
+      return;
+    }
+
     e.target.value = '';
 
     const remainingSlots = 3 - billPhotos.length;
-    if (remainingSlots <= 0) return;
+    if (remainingSlots <= 0) {
+      addToast('Maximum 3 bill photos allowed', 'error');
+      return;
+    }
 
     const toProcess = Math.min(files.length, remainingSlots);
+    addToast(`Processing ${toProcess} bill photo${toProcess > 1 ? 's' : ''}...`, 'info');
 
     for (let i = 0; i < toProcess; i++) {
       const file = files[i];
 
-      try {
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (evt) => {
-            const result = evt.target?.result as string;
-            if (!result) { reject(new Error('Empty')); return; }
+      if (!file.type.startsWith('image/')) {
+        addToast(`Skipped: ${file.name} is not an image`, 'error');
+        continue;
+      }
 
-            const img = new Image();
-            img.onload = () => {
-              let w = img.width;
-              let h = img.height;
-              if (w > 800 || h > 800) {
-                const ratio = Math.min(800 / w, 800 / h);
-                w = Math.round(w * ratio);
-                h = Math.round(h * ratio);
-              }
-              const canvas = document.createElement('canvas');
-              canvas.width = w;
-              canvas.height = h;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) { resolve(result); return; }
-              ctx.drawImage(img, 0, 0, w, h);
-              resolve(canvas.toDataURL('image/jpeg', 0.7));
-            };
-            img.onerror = () => resolve(result);
-            img.src = result;
-          };
-          reader.onerror = () => reject(new Error('Read failed'));
-          reader.readAsDataURL(file);
-        });
+      try {
+        const dataUrl = await compressImageFile(file);
+
+        if (!dataUrl || !dataUrl.startsWith('data:')) {
+          addToast('Bill photo processing failed', 'error');
+          continue;
+        }
 
         setBillPhotos((prev) => [...prev, dataUrl]);
+        addToast(`Bill photo ${i + 1} added`, 'success');
 
-      } catch {
-        setErrors((p) => ({ ...p, billPhoto: `Bill photo ${i + 1} failed.` }));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        addToast(`Bill photo ${i + 1} failed: ${msg}`, 'error');
       }
     }
   };
 
   const removeBillPhoto = (index: number) => {
     setBillPhotos((prev) => prev.filter((_, i) => i !== index));
+    addToast('Bill photo removed', 'info');
   };
 
+  // === SAVE ===
   const handleSave = async () => {
     if (!validate()) return;
     setIsSaving(true);
@@ -248,13 +295,15 @@ export default function AddItemScreen() {
     setIsSaving(false);
 
     if (result.success) {
+      addToast('Item saved!', 'success');
       goBack();
     } else {
       setSaveError(result.error || 'Failed to save. Storage may be full.');
+      addToast(result.error || 'Save failed', 'error');
     }
   };
 
-  // DEBUG: generate a test image
+  // Debug test photo
   const addTestPhoto = () => {
     const canvas = document.createElement('canvas');
     canvas.width = 200;
@@ -271,6 +320,7 @@ export default function AddItemScreen() {
     ctx.textAlign = 'center';
     ctx.fillText('TEST', 100, 110);
     setPhotos((prev) => [...prev, canvas.toDataURL('image/png')]);
+    addToast('Test photo added', 'success');
   };
 
   const weightHint = [
@@ -285,6 +335,24 @@ export default function AddItemScreen() {
 
   return (
     <div className="h-full flex flex-col bg-[#0A1628] relative">
+      {/* Toast Notifications */}
+      <div className="fixed top-4 left-0 right-0 z-[100] flex flex-col items-center gap-2 pointer-events-none px-4">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto animate-fade-in max-w-[90%] ${
+              toast.type === 'success' ? 'bg-emerald-500 text-white' :
+              toast.type === 'error' ? 'bg-red-500 text-white' :
+              'bg-[#1A3A5C] text-white border border-[#C9A84C]/30'
+            }`}
+          >
+            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+            <span className="truncate">{toast.message}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
       <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1A3A5C]/50">
         <button onClick={goBack} className="p-2 -ml-2 rounded-full active:bg-white/5">
@@ -450,33 +518,50 @@ export default function AddItemScreen() {
           </div>
         </div>
 
-        {/* === PHOTOS === */}
+        {/* === PHOTOS - SAMSUNG-COMPATIBLE === */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-[#8A94A6] uppercase tracking-wider">Photos ({photos.length}/5)</span>
             <button onClick={addTestPhoto} className="text-[10px] text-[#8A94A6]/50 underline">Debug: Add Test</button>
           </div>
 
-          {/* Off-screen file inputs - triggered by button click */}
-          <input ref={photoCameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoSelect}
-            style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
-          <input ref={photoGalleryRef} type="file" accept="image/*" multiple onChange={handlePhotoSelect}
-            style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
+          {/* Hidden file inputs - triggered by LABEL click (works on ALL browsers) */}
+          <input
+            id={photoCameraId}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoFileChange}
+            className="sr-only"
+          />
+          <input
+            id={photoGalleryId}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handlePhotoFileChange}
+            className="sr-only"
+          />
 
+          {/* Photo action buttons using LABEL elements */}
           <div className="flex gap-3 mb-3">
-            <button onClick={() => photoCameraRef.current?.click()}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none">
+            <label
+              htmlFor={photoCameraId}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer"
+            >
               <Camera className="w-4 h-4" />Take Photo
-            </button>
-            <button onClick={() => photoGalleryRef.current?.click()}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none">
+            </label>
+            <label
+              htmlFor={photoGalleryId}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer"
+            >
               <ImageIcon className="w-4 h-4" />Gallery
-            </button>
+            </label>
           </div>
 
           {errors.photo && <p className="text-xs text-red-400 mb-2">{errors.photo}</p>}
 
-          {/* Photo thumbnails - show immediately after selection */}
+          {/* Photo thumbnails */}
           {photos.length > 0 && (
             <div className="flex gap-2 flex-wrap">
               {photos.map((photo, index) => (
@@ -485,6 +570,10 @@ export default function AddItemScreen() {
                     src={photo}
                     alt={`Photo ${index + 1}`}
                     className="w-20 h-20 rounded-xl object-cover border-2 border-[#C9A84C]/40 bg-[#111D2E]"
+                    onError={() => {
+                      // If image fails to load, show error
+                      addToast(`Photo ${index + 1} failed to display`, 'error');
+                    }}
                   />
                   <button onClick={() => removePhoto(index)}
                     className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
@@ -495,7 +584,7 @@ export default function AddItemScreen() {
           )}
         </div>
 
-        {/* === BILL PHOTOS === */}
+        {/* === BILL PHOTOS - SAMSUNG-COMPATIBLE === */}
         <div className="mb-5">
           <button onClick={() => setShowBillSection((v) => !v)}
             className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] active:bg-[#1A3A5C] active:scale-[0.98] transition-all"
@@ -514,20 +603,36 @@ export default function AddItemScreen() {
 
           {showBillSection && (
             <div className="mt-3 animate-fade-in">
-              <input ref={billCameraRef} type="file" accept="image/*" capture="environment" onChange={handleBillPhotoSelect}
-                style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
-              <input ref={billGalleryRef} type="file" accept="image/*" multiple onChange={handleBillPhotoSelect}
-                style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
+              <input
+                id={billCameraId}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleBillFileChange}
+                className="sr-only"
+              />
+              <input
+                id={billGalleryId}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleBillFileChange}
+                className="sr-only"
+              />
 
               <div className="flex gap-3 mb-3">
-                <button onClick={() => billCameraRef.current?.click()}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none">
+                <label
+                  htmlFor={billCameraId}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer"
+                >
                   <Camera className="w-4 h-4" />Take Photo
-                </button>
-                <button onClick={() => billGalleryRef.current?.click()}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none">
+                </label>
+                <label
+                  htmlFor={billGalleryId}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer"
+                >
                   <ImageIcon className="w-4 h-4" />Gallery
-                </button>
+                </label>
               </div>
 
               {errors.billPhoto && <p className="text-xs text-red-400 mb-2">{errors.billPhoto}</p>}
@@ -537,7 +642,9 @@ export default function AddItemScreen() {
                   {billPhotos.map((photo, index) => (
                     <div key={index} className="relative animate-scale-in" style={{ animationDelay: `${index * 50}ms` }}>
                       <img src={photo} alt={`Bill ${index + 1}`}
-                        className="w-20 h-20 rounded-xl object-cover border-2 border-[#10B981]/40 bg-[#111D2E]" />
+                        className="w-20 h-20 rounded-xl object-cover border-2 border-[#10B981]/40 bg-[#111D2E]"
+                        onError={() => addToast(`Bill photo ${index + 1} failed to display`, 'error')}
+                      />
                       <button onClick={() => removeBillPhoto(index)}
                         className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                       ><X className="w-3 h-3 text-white" /></button>
