@@ -27,6 +27,23 @@ function isJewelCategory(c: string): boolean {
 // Toast type
 type Toast = { id: number; message: string; type: 'success' | 'error' | 'info' };
 
+// Max file size: 50MB (Samsung S24 Ultra 200MP photos can be 30-50MB)
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+// Check if file is an image (including HEIC/HEIF)
+function isImageFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true;
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'].includes(ext);
+}
+
+// Format file size for display
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 export default function AddItemScreen() {
   const { goBack } = useApp();
   const [name, setName] = useState('');
@@ -49,11 +66,10 @@ export default function AddItemScreen() {
 
   const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const newId = Date.now() + Math.random();
-    const toast = { id: newId, message, type };
-    setToasts((prev) => [...prev, toast]);
+    setToasts((prev) => [...prev, { id: newId, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== newId));
-    }, 4000);
+    }, 5000);
   }, []);
 
   const availableSubTypes =
@@ -116,57 +132,141 @@ export default function AddItemScreen() {
     return Object.keys(errs).length === 0;
   };
 
-  // ===== CORE PHOTO PROCESSING - MULTI-FALLBACK =====
-  const processImageFile = async (file: File): Promise<string> => {
-    // Strategy 1: Read file as data URL
-    const rawDataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        if (result && result.startsWith('data:')) resolve(result);
-        else reject(new Error('Invalid file data'));
-      };
-      reader.onerror = () => reject(new Error('File read failed'));
-      reader.readAsDataURL(file);
-    });
+  // ===== CORE: Process a single image file with detailed tracing =====
+  const processSingleFile = async (file: File, index: number, isBill: boolean): Promise<string | null> => {
+    const prefix = isBill ? 'Bill' : 'Photo';
 
-    // Strategy 2: Try canvas compression
+    // Step 1: Check file size
+    addToast(`${prefix} ${index + 1}: ${formatSize(file.size)}`, 'info');
+    if (file.size > MAX_FILE_SIZE) {
+      addToast(`${prefix} ${index + 1}: Too large (max 50MB)`, 'error');
+      return null;
+    }
+    if (file.size === 0) {
+      addToast(`${prefix} ${index + 1}: Empty file`, 'error');
+      return null;
+    }
+
+    // Step 2: Check if it's an image
+    if (!isImageFile(file)) {
+      addToast(`${prefix} ${index + 1}: Not an image (${file.type || 'unknown type'})`, 'error');
+      return null;
+    }
+
+    // Step 3: Read file as data URL
+    addToast(`${prefix} ${index + 1}: Reading file...`, 'info');
+    let rawDataUrl: string;
+    try {
+      rawDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
+          if (result && result.length > 100) resolve(result);
+          else reject(new Error('File too small or empty'));
+        };
+        reader.onerror = () => reject(new Error('Cannot read file'));
+        reader.onabort = () => reject(new Error('Read cancelled'));
+        reader.readAsDataURL(file);
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Read failed';
+      addToast(`${prefix} ${index + 1}: Read error - ${msg}`, 'error');
+      return null;
+    }
+
+    // Step 4: Check if it's a data URL
+    if (!rawDataUrl.startsWith('data:')) {
+      addToast(`${prefix} ${index + 1}: Invalid file data`, 'error');
+      return null;
+    }
+
+    // Step 5: Try canvas compression
+    addToast(`${prefix} ${index + 1}: Compressing...`, 'info');
     try {
       const compressed = await new Promise<string>((resolve, reject) => {
         const img = new Image();
+        let resolved = false;
+
+        const timer = setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            reject(new Error('Image load timeout'));
+          }
+        }, 15000); // 15 second timeout
+
         img.onload = () => {
+          if (resolved) return;
+          resolved = true;
+          clearTimeout(timer);
+
           try {
             let w = img.width;
             let h = img.height;
-            const MAX = 1000;
+            if (w === 0 || h === 0) {
+              reject(new Error('Zero dimensions'));
+              return;
+            }
+
+            // Resize to max 800px (smaller = more reliable)
+            const MAX = 800;
             if (w > MAX || h > MAX) {
               const ratio = Math.min(MAX / w, MAX / h);
               w = Math.round(w * ratio);
               h = Math.round(h * ratio);
             }
+
             const canvas = document.createElement('canvas');
             canvas.width = w;
             canvas.height = h;
             const ctx = canvas.getContext('2d');
-            if (!ctx) { reject(new Error('No canvas context')); return; }
+            if (!ctx) {
+              reject(new Error('No canvas context'));
+              return;
+            }
+
+            // Fill black background first (handles transparent images)
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, w, h);
             ctx.drawImage(img, 0, 0, w, h);
-            const result = canvas.toDataURL('image/jpeg', 0.7);
-            if (result && result.length > 100) resolve(result);
-            else reject(new Error('Empty canvas output'));
+
+            // Try JPEG first
+            let result = canvas.toDataURL('image/jpeg', 0.7);
+
+            // Validate result
+            if (!result || result.length < 100 || result === 'data:,') {
+              reject(new Error('Canvas output empty'));
+              return;
+            }
+
+            resolve(result);
           } catch (err) {
-            reject(err);
+            reject(err instanceof Error ? err : new Error('Canvas error'));
           }
         };
-        img.onerror = () => reject(new Error('Image load failed'));
-        // Add crossOrigin to avoid tainting issues
-        img.crossOrigin = 'anonymous';
+
+        img.onerror = () => {
+          if (resolved) return;
+          resolved = true;
+          clearTimeout(timer);
+          reject(new Error('Cannot load image'));
+        };
+
+        // Load the data URL - NO crossOrigin for data URLs!
         img.src = rawDataUrl;
       });
+
+      addToast(`${prefix} ${index + 1}: Done (${formatSize(compressed.length * 0.75)})`, 'success');
       return compressed;
-    } catch {
-      // Strategy 3: Fallback to raw data URL (no compression)
+    } catch (err) {
+      // Canvas failed - try raw data URL as fallback
+      const msg = err instanceof Error ? err.message : 'Compression failed';
+      addToast(`${prefix} ${index + 1}: ${msg}, using original...`, 'info');
+
+      // Check if raw is usable
+      if (rawDataUrl.length > 5 * 1024 * 1024) { // > ~3.7MB actual
+        addToast(`${prefix} ${index + 1}: Original too large to store`, 'error');
+        return null;
+      }
       return rawDataUrl;
     }
   };
@@ -174,57 +274,39 @@ export default function AddItemScreen() {
   // ===== PHOTO INPUT HANDLER =====
   const handlePhotoInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    // CRITICAL: Reset input immediately so it can be reused
-    e.target.value = '';
 
+    // Reset input immediately
+    try { e.target.value = ''; } catch { /* ignore */ }
+
+    // Validate files
     if (!files || files.length === 0) {
-      addToast('No photo selected', 'error');
+      addToast('No file selected', 'error');
       return;
     }
 
-    addToast(`Selected ${files.length} file(s)`, 'info');
-
+    // Check slots
     const remainingSlots = 5 - photos.length;
     if (remainingSlots <= 0) {
       addToast('Maximum 5 photos reached', 'error');
       return;
     }
 
+    addToast(`Selected ${files.length} file(s), ${remainingSlots} slots left`, 'info');
     const toProcess = Math.min(files.length, remainingSlots);
 
     for (let i = 0; i < toProcess; i++) {
       const file = files[i];
-      addToast(`Processing photo ${i + 1}...`, 'info');
-
-      // Validate
-      if (!file.type.startsWith('image/')) {
-        addToast(`Not an image: ${file.name || 'file'}`, 'error');
-        continue;
-      }
-      if (file.size === 0) {
-        addToast('Empty file, skipped', 'error');
+      if (!file) {
+        addToast(`File ${i + 1}: Missing`, 'error');
         continue;
       }
 
-      try {
-        const dataUrl = await processImageFile(file);
-
-        // Validate result
-        if (!dataUrl || !dataUrl.startsWith('data:image/')) {
-          addToast('Photo processing failed', 'error');
-          continue;
-        }
-
-        // Use functional update to ensure fresh state
-        setPhotos((prevPhotos) => {
-          if (prevPhotos.length >= 5) return prevPhotos;
-          return [...prevPhotos, dataUrl];
+      const result = await processSingleFile(file, i, false);
+      if (result) {
+        setPhotos((prev) => {
+          if (prev.length >= 5) return prev;
+          return [...prev, result];
         });
-        addToast(`Photo ${i + 1} added (${(dataUrl.length / 1024).toFixed(0)}KB)`, 'success');
-
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed';
-        addToast(`Photo ${i + 1} error: ${msg}`, 'error');
       }
     }
   };
@@ -234,10 +316,10 @@ export default function AddItemScreen() {
     addToast('Photo removed', 'info');
   };
 
-  // ===== BILL PHOTO INPUT HANDLER =====
+  // ===== BILL PHOTO HANDLER =====
   const handleBillInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    e.target.value = '';
+    try { e.target.value = ''; } catch { /* ignore */ }
 
     if (!files || files.length === 0) {
       addToast('No file selected', 'error');
@@ -251,35 +333,18 @@ export default function AddItemScreen() {
     }
 
     const toProcess = Math.min(files.length, remainingSlots);
-
     for (let i = 0; i < toProcess; i++) {
       const file = files[i];
-      if (!file.type.startsWith('image/')) {
-        addToast(`Not an image: ${file.name || 'file'}`, 'error');
-        continue;
-      }
+      if (!file) continue;
 
-      try {
-        const dataUrl = await processImageFile(file);
-        if (!dataUrl || !dataUrl.startsWith('data:image/')) {
-          addToast('Bill photo processing failed', 'error');
-          continue;
-        }
+      const result = await processSingleFile(file, i, true);
+      if (result) {
         setBillPhotos((prev) => {
           if (prev.length >= 3) return prev;
-          return [...prev, dataUrl];
+          return [...prev, result];
         });
-        addToast(`Bill photo ${i + 1} added`, 'success');
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed';
-        addToast(`Bill photo error: ${msg}`, 'error');
       }
     }
-  };
-
-  const removeBillPhoto = (index: number) => {
-    setBillPhotos((prev) => prev.filter((_, i) => i !== index));
-    addToast('Bill photo removed', 'info');
   };
 
   // ===== SAVE =====
@@ -287,6 +352,8 @@ export default function AddItemScreen() {
     if (!validate()) return;
     setIsSaving(true);
     setSaveError('');
+
+    addToast(`Saving with ${photos.length} photos...`, 'info');
 
     const item: LockerItem = {
       id: generateUUID(),
@@ -311,12 +378,12 @@ export default function AddItemScreen() {
       addToast('Item saved!', 'success');
       goBack();
     } else {
-      setSaveError(result.error || 'Failed to save. Storage may be full.');
+      setSaveError(result.error || 'Failed to save');
       addToast(result.error || 'Save failed', 'error');
     }
   };
 
-  // Test photo for debugging
+  // Debug test photo
   const addTestPhoto = () => {
     const canvas = document.createElement('canvas');
     canvas.width = 200;
@@ -332,8 +399,9 @@ export default function AddItemScreen() {
     ctx.font = 'bold 24px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('TEST', 100, 110);
-    setPhotos((prev) => [...prev, canvas.toDataURL('image/png')]);
-    addToast('Test photo added', 'success');
+    const dataUrl = canvas.toDataURL('image/png');
+    setPhotos((prev) => [...prev, dataUrl]);
+    addToast(`Test photo added (${formatSize(dataUrl.length * 0.75)})`, 'success');
   };
 
   const weightHint = [
@@ -346,43 +414,28 @@ export default function AddItemScreen() {
     !(category === 'Other' && !categoryCustom.trim()) &&
     !((isJewelCategory(category) || category === 'Documents') && !subType);
 
-  // ===== FILE INPUT BUTTON COMPONENT =====
-  // Uses the transparent overlay pattern - input is inside label, opacity 0, covers full area
-  // This is the most reliable pattern for ALL browsers including Chrome on Android
-  const FileInputButton = ({
-    onChange,
-    acceptMultiple = false,
-    capture = false,
-    icon: Icon,
-    label,
-    colorClass,
+  // File Input Button - transparent overlay pattern
+  const FileInputBtn = ({
+    onChange, multiple, capture, icon: Icon, label, color,
   }: {
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    acceptMultiple?: boolean;
+    multiple?: boolean;
     capture?: boolean;
     icon: React.ElementType;
     label: string;
-    colorClass: string;
+    color: string;
   }) => (
-    <label className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] ${colorClass} text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer relative overflow-hidden`}>
-      <Icon className="w-4 h-4 pointer-events-none" />
+    <label className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer relative overflow-hidden ${color}`}>
+      <Icon className="w-4 h-4 pointer-events-none flex-shrink-0" />
       <span className="pointer-events-none">{label}</span>
       <input
         type="file"
-        accept="image/*"
-        {...(capture ? { capture: 'environment' } : {})}
-        {...(acceptMultiple ? { multiple: true } : {})}
+        {...(capture ? { accept: 'image/*', capture: 'environment' } : {})}
+        {...(!capture ? {} : {})}
+        {...(multiple ? { multiple: true } : {})}
         onChange={onChange}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          opacity: 0,
-          cursor: 'pointer',
-          fontSize: '100px', // ensures input is clickable on all devices
-        }}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        style={{ fontSize: '100px' }}
       />
     </label>
   );
@@ -394,7 +447,7 @@ export default function AddItemScreen() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto animate-fade-in max-w-[90%] ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto animate-fade-in max-w-[95%] ${
               toast.type === 'success' ? 'bg-emerald-500 text-white' :
               toast.type === 'error' ? 'bg-red-500 text-white' :
               'bg-[#1A3A5C] text-white border border-[#C9A84C]/30'
@@ -572,29 +625,16 @@ export default function AddItemScreen() {
           </div>
         </div>
 
-        {/* === PHOTOS - TRANSPARENT OVERLAY PATTERN === */}
+        {/* === PHOTOS === */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-[#8A94A6] uppercase tracking-wider">Photos ({photos.length}/5)</span>
             <button onClick={addTestPhoto} className="text-[10px] text-[#8A94A6]/50 underline">Debug: Test</button>
           </div>
 
-          {/* Buttons use transparent overlay input pattern */}
           <div className="flex gap-3 mb-3">
-            <FileInputButton
-              onChange={handlePhotoInputChange}
-              capture
-              icon={Camera}
-              label="Take Photo"
-              colorClass="text-[#C9A84C]"
-            />
-            <FileInputButton
-              onChange={handlePhotoInputChange}
-              acceptMultiple
-              icon={ImageIcon}
-              label="Gallery"
-              colorClass="text-[#C9A84C]"
-            />
+            <FileInputBtn onChange={handlePhotoInputChange} capture icon={Camera} label="Take Photo" color="text-[#C9A84C]" />
+            <FileInputBtn onChange={handlePhotoInputChange} multiple icon={ImageIcon} label="Gallery" color="text-[#C9A84C]" />
           </div>
 
           {errors.photo && <p className="text-xs text-red-400 mb-2">{errors.photo}</p>}
@@ -608,7 +648,6 @@ export default function AddItemScreen() {
                     src={photo}
                     alt={`Photo ${index + 1}`}
                     className="w-20 h-20 rounded-xl object-cover border-2 border-[#C9A84C]/40 bg-[#111D2E]"
-                    onError={() => addToast(`Photo ${index + 1} display error`, 'error')}
                   />
                   <button onClick={() => removePhoto(index)}
                     className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
@@ -619,7 +658,7 @@ export default function AddItemScreen() {
           )}
         </div>
 
-        {/* === BILL PHOTOS - TRANSPARENT OVERLAY PATTERN === */}
+        {/* === BILL PHOTOS === */}
         <div className="mb-5">
           <button onClick={() => setShowBillSection((v) => !v)}
             className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] active:bg-[#1A3A5C] active:scale-[0.98] transition-all"
@@ -639,20 +678,8 @@ export default function AddItemScreen() {
           {showBillSection && (
             <div className="mt-3 animate-fade-in">
               <div className="flex gap-3 mb-3">
-                <FileInputButton
-                  onChange={handleBillInputChange}
-                  capture
-                  icon={Camera}
-                  label="Take Photo"
-                  colorClass="text-[#10B981]"
-                />
-                <FileInputButton
-                  onChange={handleBillInputChange}
-                  acceptMultiple
-                  icon={ImageIcon}
-                  label="Gallery"
-                  colorClass="text-[#10B981]"
-                />
+                <FileInputBtn onChange={handleBillInputChange} capture icon={Camera} label="Take Photo" color="text-[#10B981]" />
+                <FileInputBtn onChange={handleBillInputChange} multiple icon={ImageIcon} label="Gallery" color="text-[#10B981]" />
               </div>
 
               {errors.billPhoto && <p className="text-xs text-red-400 mb-2">{errors.billPhoto}</p>}
@@ -663,9 +690,8 @@ export default function AddItemScreen() {
                     <div key={index} className="relative animate-scale-in" style={{ animationDelay: `${index * 50}ms` }}>
                       <img src={photo} alt={`Bill ${index + 1}`}
                         className="w-20 h-20 rounded-xl object-cover border-2 border-[#10B981]/40 bg-[#111D2E]"
-                        onError={() => addToast(`Bill photo ${index + 1} display error`, 'error')}
                       />
-                      <button onClick={() => removeBillPhoto(index)}
+                      <button onClick={() => { setBillPhotos((p) => p.filter((_, i) => i !== index)); addToast('Removed', 'info'); }}
                         className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                       ><X className="w-3 h-3 text-white" /></button>
                     </div>
