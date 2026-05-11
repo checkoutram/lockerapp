@@ -3,6 +3,7 @@
  * Automatically loads file content when given a file:// path
  */
 import { useState, useEffect } from 'react';
+import { ImageIcon } from 'lucide-react';
 import { getPhotoUrl } from '@/utils/photoStorage';
 
 interface PhotoImageProps {
@@ -15,14 +16,17 @@ interface PhotoImageProps {
 export default function PhotoImage({ photoRef, alt, className = '', onError }: PhotoImageProps) {
   const [src, setSrc] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(false);
 
     if (!photoRef) {
       setSrc('');
       setLoading(false);
+      setError(true);
       return;
     }
 
@@ -33,36 +37,45 @@ export default function PhotoImage({ photoRef, alt, className = '', onError }: P
       return;
     }
 
-    // File path - load it
-    getPhotoUrl(photoRef).then((url) => {
-      if (!cancelled) {
-        setSrc(url);
+    // File path - load it asynchronously
+    getPhotoUrl(photoRef)
+      .then((url) => {
+        if (cancelled) return;
+        if (url && url.length > 0) {
+          setSrc(url);
+          setError(false);
+        } else {
+          setSrc('');
+          setError(true);
+          onError?.();
+        }
         setLoading(false);
-      }
-    }).catch(() => {
-      if (!cancelled) {
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[PhotoImage] Failed to load:', photoRef, err);
         setSrc('');
+        setError(true);
         setLoading(false);
-      }
-    });
+        onError?.();
+      });
 
     return () => { cancelled = true; };
   }, [photoRef]);
 
   if (loading) {
     return (
-      <div className={`bg-[#111D2E] animate-pulse rounded-xl ${className}`}>
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
-        </div>
+      <div className={`bg-[#111D2E] rounded-xl flex items-center justify-center ${className}`}>
+        <div className="w-5 h-5 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  if (!src) {
+  if (error || !src) {
     return (
-      <div className={`bg-[#111D2E] rounded-xl flex items-center justify-center ${className}`}>
-        <span className="text-[#8A94A6] text-xs">No image</span>
+      <div className={`bg-[#111D2E] rounded-xl flex flex-col items-center justify-center gap-1 ${className}`}>
+        <ImageIcon className="w-6 h-6 text-[#8A94A6]/30" />
+        <span className="text-[10px] text-[#8A94A6]/40">No image</span>
       </div>
     );
   }
@@ -72,8 +85,11 @@ export default function PhotoImage({ photoRef, alt, className = '', onError }: P
       src={src}
       alt={alt}
       className={className}
+      loading="lazy"
       onError={() => {
+        console.error('[PhotoImage] img onError:', photoRef.substring(0, 50));
         setSrc('');
+        setError(true);
         onError?.();
       }}
     />
