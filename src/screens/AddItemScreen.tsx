@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { ChevronLeft, Camera, ImageIcon, X, Calendar } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { saveItem, FileSystem } from '@/utils/storage';
+import { saveItem } from '@/utils/storage';
 import { generateUUID } from '@/utils/crypto';
 import {
   type LockerItem,
@@ -37,7 +37,16 @@ export default function AddItemScreen() {
   const [pieceCount, setPieceCount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [billPhotos, setBillPhotos] = useState<string[]>([]);
+  const [showBillSection, setShowBillSection] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const photoGalleryRef = useRef<HTMLInputElement>(null);
+  const photoCameraRef = useRef<HTMLInputElement>(null);
+  const billGalleryRef = useRef<HTMLInputElement>(null);
+  const billCameraRef = useRef<HTMLInputElement>(null);
 
   const availableSubTypes =
     isJewelCategory(category) ? JEWELLERY_SUBTYPES
@@ -99,48 +108,126 @@ export default function AddItemScreen() {
     return Object.keys(errs).length === 0;
   };
 
+  // Process photos: compress then IMMEDIATELY add to state for display
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
-    // Reset input so same file can be selected again
     e.target.value = '';
 
     const remainingSlots = 5 - photos.length;
     if (remainingSlots <= 0) return;
 
     const toProcess = Math.min(files.length, remainingSlots);
+
     for (let i = 0; i < toProcess; i++) {
       const file = files[i];
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        if (base64) {
-          const photoId = `${FileSystem.documentDirectory}${generateUUID()}.jpg`;
-          FileSystem.writeAsStringAsync(photoId, base64)
-            .then(() => {
-              setPhotos((prev) => [...prev, photoId]);
-            })
-            .catch(() => {
-              console.error('Failed to save photo');
-            });
-        }
-      };
-      reader.onerror = () => {
-        console.error('Failed to read file');
-      };
-      reader.readAsDataURL(file);
+
+      try {
+        // Use canvas compression to reduce size for localStorage
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            const result = evt.target?.result as string;
+            if (!result) { reject(new Error('Empty')); return; }
+
+            const img = new Image();
+            img.onload = () => {
+              let w = img.width;
+              let h = img.height;
+              if (w > 800 || h > 800) {
+                const ratio = Math.min(800 / w, 800 / h);
+                w = Math.round(w * ratio);
+                h = Math.round(h * ratio);
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) { resolve(result); return; }
+              ctx.drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.onerror = () => resolve(result); // fallback to raw
+            img.src = result;
+          };
+          reader.onerror = () => reject(new Error('Read failed'));
+          reader.readAsDataURL(file);
+        });
+
+        // IMMEDIATELY add to state so thumbnail shows right away
+        setPhotos((prev) => [...prev, dataUrl]);
+
+      } catch {
+        setErrors((p) => ({ ...p, photo: `Photo ${i + 1} failed. Try another.` }));
+      }
     }
   };
 
   const removePhoto = (index: number) => {
-    const photoUri = photos[index];
-    FileSystem.deleteAsync(photoUri);
     setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleBillPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    e.target.value = '';
+
+    const remainingSlots = 3 - billPhotos.length;
+    if (remainingSlots <= 0) return;
+
+    const toProcess = Math.min(files.length, remainingSlots);
+
+    for (let i = 0; i < toProcess; i++) {
+      const file = files[i];
+
+      try {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            const result = evt.target?.result as string;
+            if (!result) { reject(new Error('Empty')); return; }
+
+            const img = new Image();
+            img.onload = () => {
+              let w = img.width;
+              let h = img.height;
+              if (w > 800 || h > 800) {
+                const ratio = Math.min(800 / w, 800 / h);
+                w = Math.round(w * ratio);
+                h = Math.round(h * ratio);
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) { resolve(result); return; }
+              ctx.drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.onerror = () => resolve(result);
+            img.src = result;
+          };
+          reader.onerror = () => reject(new Error('Read failed'));
+          reader.readAsDataURL(file);
+        });
+
+        setBillPhotos((prev) => [...prev, dataUrl]);
+
+      } catch {
+        setErrors((p) => ({ ...p, billPhoto: `Bill photo ${i + 1} failed.` }));
+      }
+    }
+  };
+
+  const removeBillPhoto = (index: number) => {
+    setBillPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
     if (!validate()) return;
+    setIsSaving(true);
+    setSaveError('');
+
     const item: LockerItem = {
       id: generateUUID(),
       name: name.trim(),
@@ -154,9 +241,36 @@ export default function AddItemScreen() {
       pieceCount,
       dateAdded: new Date(date).toISOString(),
       photos,
+      billPhotos,
     };
-    await saveItem(item);
-    goBack();
+
+    const result = await saveItem(item);
+    setIsSaving(false);
+
+    if (result.success) {
+      goBack();
+    } else {
+      setSaveError(result.error || 'Failed to save. Storage may be full.');
+    }
+  };
+
+  // DEBUG: generate a test image
+  const addTestPhoto = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 200;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const grad = ctx.createLinearGradient(0, 0, 200, 200);
+    grad.addColorStop(0, '#C9A84C');
+    grad.addColorStop(1, '#0A1628');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 200, 200);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('TEST', 100, 110);
+    setPhotos((prev) => [...prev, canvas.toDataURL('image/png')]);
   };
 
   const weightHint = [
@@ -195,7 +309,7 @@ export default function AddItemScreen() {
           {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
         </div>
 
-        {/* CATEGORY — Level 1: Main Category */}
+        {/* CATEGORY Level 1 */}
         <div className="mb-5">
           <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-3 block">
             Category <span className="text-red-400">*</span>
@@ -205,13 +319,9 @@ export default function AddItemScreen() {
               const color = CATEGORY_COLORS[cat];
               const isSelected = category === cat;
               return (
-                <button
-                  key={cat}
-                  onClick={() => handleCategorySelect(cat)}
+                <button key={cat} onClick={() => handleCategorySelect(cat)}
                   className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 border ${
-                    isSelected
-                      ? 'border-transparent text-[#0A1628]'
-                      : 'bg-[#111D2E] border-[#1A3A5C] text-white hover:border-[#C9A84C]/30'
+                    isSelected ? 'border-transparent text-[#0A1628]' : 'bg-[#111D2E] border-[#1A3A5C] text-white hover:border-[#C9A84C]/30'
                   }`}
                   style={isSelected ? { backgroundColor: color, borderColor: color } : {}}
                 >
@@ -229,7 +339,7 @@ export default function AddItemScreen() {
           {errors.category && <p className="text-xs text-red-400 mt-1">{errors.category}</p>}
         </div>
 
-        {/* CATEGORY — Level 2: Sub-type chips */}
+        {/* CATEGORY Level 2 */}
         {availableSubTypes.length > 0 && (
           <div className="mb-5 animate-fade-in">
             <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-3 block">
@@ -239,28 +349,19 @@ export default function AddItemScreen() {
               {availableSubTypes.map((st) => {
                 const isSelected = subType === st;
                 return (
-                  <button
-                    key={st}
-                    onClick={() => handleSubTypeSelect(st)}
+                  <button key={st} onClick={() => handleSubTypeSelect(st)}
                     className={`px-3.5 py-2 rounded-xl text-sm transition-all active:scale-95 border ${
-                      isSelected
-                        ? 'bg-[#C9A84C] border-[#C9A84C] text-[#0A1628] font-medium'
-                        : 'bg-[#111D2E] border-[#1A3A5C] text-white hover:border-[#C9A84C]/30'
+                      isSelected ? 'bg-[#C9A84C] border-[#C9A84C] text-[#0A1628] font-medium' : 'bg-[#111D2E] border-[#1A3A5C] text-white hover:border-[#C9A84C]/30'
                     }`}
-                  >
-                    {st}
-                  </button>
+                  >{st}</button>
                 );
               })}
             </div>
             {errors.subType && <p className="text-xs text-red-400 mt-1">{errors.subType}</p>}
 
-            {/* Custom sub-type input */}
             {showSubTypeCustom && (
               <div className="mt-3 animate-fade-in">
-                <input
-                  type="text"
-                  value={subTypeCustom}
+                <input type="text" value={subTypeCustom}
                   onChange={(e) => { setSubTypeCustom(e.target.value); setErrors((p) => ({ ...p, subTypeCustom: '' })); }}
                   placeholder={isJewelCategory(category) ? 'Describe the item type...' : 'Describe the document type...'}
                   maxLength={50}
@@ -272,40 +373,31 @@ export default function AddItemScreen() {
           </div>
         )}
 
-        {/* Other category custom input */}
+        {/* Other */}
         {showOtherInput && (
           <div className="mb-5 animate-fade-in">
             <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">
               Describe the category <span className="text-red-400">*</span>
             </label>
-            <input
-              type="text"
-              value={categoryCustom}
+            <input type="text" value={categoryCustom}
               onChange={(e) => { setCategoryCustom(e.target.value); setErrors((p) => ({ ...p, categoryCustom: '' })); }}
-              placeholder="e.g., Antique coin, Watch, USB drive..."
-              maxLength={100}
+              placeholder="e.g., Antique coin, Watch..." maxLength={100}
               className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white placeholder-[#8A94A6]/40 text-sm focus:border-[#C9A84C]/50 transition-colors"
             />
             {errors.categoryCustom && <p className="text-xs text-red-400 mt-1">{errors.categoryCustom}</p>}
           </div>
         )}
 
-        {/* WEIGHT / QUANTITY SECTION */}
+        {/* WEIGHT */}
         {showWeightSection && (
           <div className="mb-5 animate-fade-in">
-            <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-3 block">
-              Weight / Quantity
-            </label>
+            <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-3 block">Weight / Quantity</label>
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="text-[10px] text-[#8A94A6] mb-1 block">Amount</label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={weightAmount}
+                <input type="text" inputMode="decimal" value={weightAmount}
                   onChange={(e) => handleWeightAmountChange(e.target.value)}
-                  placeholder="e.g., 22.5"
-                  maxLength={8}
+                  placeholder="e.g., 22.5" maxLength={8}
                   className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white placeholder-[#8A94A6]/40 text-sm focus:border-[#C9A84C]/50 transition-colors"
                 />
               </div>
@@ -313,39 +405,23 @@ export default function AddItemScreen() {
                 <label className="text-[10px] text-[#8A94A6] mb-1 block">Unit</label>
                 <div className="flex flex-wrap gap-1.5">
                   {availableWeightUnits.map((unit) => (
-                    <button
-                      key={unit}
-                      onClick={() => setWeightUnit(unit)}
+                    <button key={unit} onClick={() => setWeightUnit(unit as WeightUnit)}
                       className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 border ${
-                        weightUnit === unit
-                          ? 'bg-[#C9A84C] border-[#C9A84C] text-[#0A1628]'
-                          : 'bg-[#111D2E] border-[#1A3A5C] text-white'
+                        weightUnit === unit ? 'bg-[#C9A84C] border-[#C9A84C] text-[#0A1628]' : 'bg-[#111D2E] border-[#1A3A5C] text-white'
                       }`}
-                    >
-                      {unit}
-                    </button>
+                    >{unit}</button>
                   ))}
                 </div>
               </div>
             </div>
-            {weightHint && (
-              <p className="text-xs text-[#8A94A6]/60 mt-2">{weightHint}</p>
-            )}
-            {!weightHint && (
-              <p className="text-xs text-[#8A94A6]/40 mt-2">e.g., 22.5 g &middot; 2 pcs</p>
-            )}
-            {errors.weight && <p className="text-xs text-red-400 mt-1">{errors.weight}</p>}
+            {weightHint && <p className="text-xs text-[#8A94A6]/60 mt-2">{weightHint}</p>}
+            {!weightHint && <p className="text-xs text-[#8A94A6]/40 mt-2">e.g., 22.5 g &middot; 2 pcs</p>}
 
-            {/* Piece Count */}
             {showPieceCount && (
               <div className="mt-3 animate-fade-in">
                 <label className="text-[10px] text-[#8A94A6] mb-1 block">No. of Pieces</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={pieceCount}
-                  onChange={(e) => handlePieceCountChange(e.target.value)}
-                  placeholder="e.g., 2"
+                <input type="text" inputMode="numeric" value={pieceCount}
+                  onChange={(e) => handlePieceCountChange(e.target.value)} placeholder="e.g., 2"
                   className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white placeholder-[#8A94A6]/40 text-sm focus:border-[#C9A84C]/50 transition-colors"
                 />
                 {errors.pieceCount && <p className="text-xs text-red-400 mt-1">{errors.pieceCount}</p>}
@@ -374,49 +450,134 @@ export default function AddItemScreen() {
           </div>
         </div>
 
-        {/* Photos */}
-        <div className="mb-4">
-          <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">Photos ({photos.length}/5)</label>
-          <div className="flex gap-3 mb-3 relative">
-            {/* Take Photo — file input overlays the button */}
-            <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all relative cursor-pointer overflow-hidden">
-              <Camera className="w-4 h-4" />Take Photo
-              <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={handlePhotoSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
-            </label>
-            {/* Gallery — file input overlays the button */}
-            <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all relative cursor-pointer overflow-hidden">
-              <ImageIcon className="w-4 h-4" />Gallery
-              <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handlePhotoSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
-            </label>
+        {/* === PHOTOS === */}
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-[#8A94A6] uppercase tracking-wider">Photos ({photos.length}/5)</span>
+            <button onClick={addTestPhoto} className="text-[10px] text-[#8A94A6]/50 underline">Debug: Add Test</button>
           </div>
+
+          {/* Off-screen file inputs - triggered by button click */}
+          <input ref={photoCameraRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoSelect}
+            style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
+          <input ref={photoGalleryRef} type="file" accept="image/*" multiple onChange={handlePhotoSelect}
+            style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
+
+          <div className="flex gap-3 mb-3">
+            <button onClick={() => photoCameraRef.current?.click()}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none">
+              <Camera className="w-4 h-4" />Take Photo
+            </button>
+            <button onClick={() => photoGalleryRef.current?.click()}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none">
+              <ImageIcon className="w-4 h-4" />Gallery
+            </button>
+          </div>
+
+          {errors.photo && <p className="text-xs text-red-400 mb-2">{errors.photo}</p>}
+
+          {/* Photo thumbnails - show immediately after selection */}
           {photos.length > 0 && (
             <div className="flex gap-2 flex-wrap">
               {photos.map((photo, index) => (
                 <div key={index} className="relative animate-scale-in" style={{ animationDelay: `${index * 50}ms` }}>
-                  <img src={photo} alt={`Photo ${index + 1}`} className="photo-thumbnail" />
+                  <img
+                    src={photo}
+                    alt={`Photo ${index + 1}`}
+                    className="w-20 h-20 rounded-xl object-cover border-2 border-[#C9A84C]/40 bg-[#111D2E]"
+                  />
                   <button onClick={() => removePhoto(index)}
                     className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
-                  >
-                    <X className="w-3 h-3 text-white" />
-                  </button>
+                  ><X className="w-3 h-3 text-white" /></button>
                 </div>
               ))}
             </div>
           )}
         </div>
+
+        {/* === BILL PHOTOS === */}
+        <div className="mb-5">
+          <button onClick={() => setShowBillSection((v) => !v)}
+            className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] active:bg-[#1A3A5C] active:scale-[0.98] transition-all"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#10B981]/15 flex items-center justify-center">
+              <Receipt className="w-5 h-5 text-[#10B981]" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-medium text-white">Bill / Certificate Photo</p>
+              <p className="text-xs text-[#8A94A6]">
+                {billPhotos.length > 0 ? `${billPhotos.length} attached` : 'Optional — tap to expand'}
+              </p>
+            </div>
+            {showBillSection ? <ChevronUp className="w-4 h-4 text-[#8A94A6]" /> : <ChevronDown className="w-4 h-4 text-[#8A94A6]" />}
+          </button>
+
+          {showBillSection && (
+            <div className="mt-3 animate-fade-in">
+              <input ref={billCameraRef} type="file" accept="image/*" capture="environment" onChange={handleBillPhotoSelect}
+                style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
+              <input ref={billGalleryRef} type="file" accept="image/*" multiple onChange={handleBillPhotoSelect}
+                style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
+
+              <div className="flex gap-3 mb-3">
+                <button onClick={() => billCameraRef.current?.click()}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none">
+                  <Camera className="w-4 h-4" />Take Photo
+                </button>
+                <button onClick={() => billGalleryRef.current?.click()}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none">
+                  <ImageIcon className="w-4 h-4" />Gallery
+                </button>
+              </div>
+
+              {errors.billPhoto && <p className="text-xs text-red-400 mb-2">{errors.billPhoto}</p>}
+
+              {billPhotos.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {billPhotos.map((photo, index) => (
+                    <div key={index} className="relative animate-scale-in" style={{ animationDelay: `${index * 50}ms` }}>
+                      <img src={photo} alt={`Bill ${index + 1}`}
+                        className="w-20 h-20 rounded-xl object-cover border-2 border-[#10B981]/40 bg-[#111D2E]" />
+                      <button onClick={() => removeBillPhoto(index)}
+                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                      ><X className="w-3 h-3 text-white" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-[#8A94A6]/50 mt-2">{billPhotos.length}/3</p>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Save Error */}
+      {saveError && (
+        <div className="absolute bottom-20 left-0 right-0 px-5 z-20">
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>{saveError}</span>
+          </div>
+        </div>
+      )}
 
       {/* Save Button */}
       <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-[#0A1628] via-[#0A1628] to-transparent z-10">
-        <button onClick={handleSave}
-          disabled={!isValid}
+        <button onClick={handleSave} disabled={!isValid || isSaving}
           className={`w-full py-4 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98] ${
-            isValid
+            isValid && !isSaving
               ? 'bg-[#C9A84C] text-[#0A1628] shadow-lg shadow-[#C9A84C]/20'
               : 'bg-[#111D2E] text-[#8A94A6] border border-[#1A3A5C]'
           }`}
         >
-          Save to {APP_NAME}
+          {isSaving ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+              Saving...
+            </span>
+          ) : (
+            `Save to ${APP_NAME}`
+          )}
         </button>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Lock, Plus, Settings, ImageIcon, Trash2, Eye, Scale } from 'lucide-react';
+import { Lock, Plus, Settings, ImageIcon, Trash2, Eye, Scale, Receipt } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { getItems, deleteItem } from '@/utils/storage';
 import type { LockerItem } from '@/types';
@@ -124,7 +124,17 @@ export default function HomeScreen() {
                   <div className="relative aspect-square bg-[#0D1929]">
                     {item.photos.length > 0 ? (
                       <>
-                        <img src={item.photos[0]} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                        <img
+                          src={item.photos[0]}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            const el = e.currentTarget;
+                            el.style.display = 'none';
+                            el.parentElement?.classList.add('photo-fallback');
+                          }}
+                        />
                         {item.photos.length > 1 && (
                           <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full">
                             <span className="text-xs text-white font-medium">{item.photos.length}</span>
@@ -148,7 +158,12 @@ export default function HomeScreen() {
                       }}>
                         {displayCategory}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2">
+                        {item.billPhotos && item.billPhotos.length > 0 && (
+                          <span className="text-[10px] text-[#10B981] flex items-center gap-0.5">
+                            <Receipt className="w-2.5 h-2.5" />Bill
+                          </span>
+                        )}
                         {weightSummary && (
                           <span className="text-[10px] text-[#8A94A6] flex items-center gap-0.5">
                             <Scale className="w-2.5 h-2.5" />{weightSummary}

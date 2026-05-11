@@ -11,6 +11,7 @@ export interface LockerItem {
   pieceCount: string;
   dateAdded: string;
   photos: string[];
+  billPhotos: string[];
 }
 
 export type ScreenName =
@@ -88,6 +89,17 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Documents: '#7FB3D3',
   Other: '#95A5A6',
 };
+
+// Validate that a photo is a valid base64 data URL (not an old key string)
+export function isValidPhoto(photo: string): boolean {
+  return typeof photo === 'string' && photo.startsWith('data:image/');
+}
+
+// Filter out broken photos (old key strings) and return only valid ones
+export function getValidPhotos(photos: string[] | undefined): string[] {
+  if (!photos || !Array.isArray(photos)) return [];
+  return photos.filter(isValidPhoto);
+}
 
 export const PIECE_COUNT_SUBTYPES = [
   'Gold Coin',

@@ -1,5 +1,6 @@
 // Simulates expo-secure-store and AsyncStorage using localStorage
 import type { LockerItem } from '@/types';
+import { getValidPhotos } from '@/types';
 
 const PREFIX = 'inbanklocker_';
 
@@ -58,15 +59,34 @@ export const FileSystem = {
   },
 };
 
-// Calculate total storage used by photos
+// Check if localStorage has enough space
+function hasEnoughSpace(neededBytes: number): boolean {
+  try {
+    const testKey = PREFIX + '_quota_test_';
+    const testData = 'x'.repeat(Math.min(neededBytes, 1024 * 1024));
+    localStorage.setItem(testKey, testData);
+    localStorage.removeItem(testKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Calculate total storage used by photos (base64 data URLs stored in items)
 export async function getStorageUsed(): Promise<string> {
   let total = 0;
   const items = await getItems();
   for (const item of items) {
     for (const photo of item.photos) {
-      const info = await FileSystem.getInfoAsync(photo);
-      if (info.exists && info.size) {
-        total += info.size;
+      if (photo.startsWith('data:')) {
+        total += Math.round(photo.length * 0.75);
+      }
+    }
+    if (item.billPhotos) {
+      for (const photo of item.billPhotos) {
+        if (photo.startsWith('data:')) {
+          total += Math.round(photo.length * 0.75);
+        }
       }
     }
   }
@@ -81,48 +101,66 @@ export async function getItems(): Promise<LockerItem[]> {
   const data = await AsyncStorage.getItem('items');
   if (!data) return [];
   try {
-    return JSON.parse(data);
+    const items: LockerItem[] = JSON.parse(data);
+    // Clean up broken photos (old key strings) from loaded items
+    return items.map((item) => ({
+      ...item,
+      photos: getValidPhotos(item.photos),
+      billPhotos: getValidPhotos(item.billPhotos),
+    }));
   } catch {
     return [];
   }
 }
 
-export async function saveItem(item: LockerItem): Promise<void> {
-  const items = await getItems();
-  items.unshift(item);
-  await AsyncStorage.setItem('items', JSON.stringify(items));
+export async function saveItem(item: LockerItem): Promise<{ success: boolean; error?: string }> {
+  try {
+    const items = await getItems();
+    items.unshift(item);
+    
+    const jsonStr = JSON.stringify(items);
+    const size = jsonStr.length * 2;
+    
+    // Check if we have enough space
+    if (!hasEnoughSpace(size)) {
+      return { 
+        success: false, 
+        error: `Storage full. This item with photos is too large (~${(size / 1024 / 1024).toFixed(1)}MB). Try using fewer or smaller photos.` 
+      };
+    }
+    
+    await AsyncStorage.setItem('items', jsonStr);
+    return { success: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return { success: false, error: `Failed to save: ${msg}` };
+  }
 }
 
 export async function deleteItem(itemId: string): Promise<void> {
   const items = await getItems();
-  const item = items.find(i => i.id === itemId);
-  if (item) {
-    // Delete photos
-    for (const photo of item.photos) {
-      await FileSystem.deleteAsync(photo);
-    }
-  }
   const filtered = items.filter(i => i.id !== itemId);
   await AsyncStorage.setItem('items', JSON.stringify(filtered));
 }
 
-export async function updateItem(updatedItem: LockerItem): Promise<void> {
-  const items = await getItems();
-  const index = items.findIndex(i => i.id === updatedItem.id);
-  if (index !== -1) {
-    items[index] = updatedItem;
-    await AsyncStorage.setItem('items', JSON.stringify(items));
+export async function updateItem(updatedItem: LockerItem): Promise<{ success: boolean; error?: string }> {
+  try {
+    const items = await getItems();
+    const index = items.findIndex(i => i.id === updatedItem.id);
+    if (index !== -1) {
+      items[index] = updatedItem;
+      await AsyncStorage.setItem('items', JSON.stringify(items));
+      return { success: true };
+    }
+    return { success: false, error: 'Item not found' };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return { success: false, error: `Failed to update: ${msg}` };
   }
 }
 
 // Wipe all data
 export async function wipeAllData(): Promise<void> {
-  const items = await getItems();
-  for (const item of items) {
-    for (const photo of item.photos) {
-      await FileSystem.deleteAsync(photo);
-    }
-  }
   await AsyncStorage.removeItem('items');
   await SecureStore.deleteItemAsync('pin');
   await AsyncStorage.removeItem('biometric');

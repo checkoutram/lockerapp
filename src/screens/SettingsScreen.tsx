@@ -62,6 +62,7 @@ export default function SettingsScreen() {
       text += `Description: ${item.description || 'N/A'}\n`;
       text += `Date Added: ${new Date(item.dateAdded).toLocaleDateString()}\n`;
       text += `Photos: ${item.photos.length} photo(s) attached\n`;
+      if (item.billPhotos && item.billPhotos.length > 0) text += `Bill/Certificate Photos: ${item.billPhotos.length} attached\n`;
       text += `-----------------------------\n\n`;
     });
 
