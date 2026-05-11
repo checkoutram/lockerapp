@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, Check } from 'lucide-react';
+import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { useApp } from '@/context/AppContext';
 import { getItems, deleteItem, updateItem } from '@/utils/storage';
-import { compressImage } from '@/utils/images';
+import PhotoImage from '@/components/PhotoImage';
 import type { LockerItem, WeightUnit } from '@/types';
 import { CATEGORY_COLORS, APP_NAME, PIECE_COUNT_SUBTYPES } from '@/types';
 
@@ -100,20 +101,55 @@ export default function ItemDetailScreen() {
     setIsEditing(false);
   };
 
-  // Photo handlers for edit mode
-  const handleAddPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    e.target.value = '';
-    if (editPhotos.length >= 5) return;
+  // Native Capacitor Camera for edit mode
+  const takeEditPhoto = async (isBill: boolean) => {
+    const maxCount = isBill ? 3 : 5;
+    const current = isBill ? editBillPhotos.length : editPhotos.length;
+    if (current >= maxCount) { setSaveError(`Maximum ${maxCount} photos`); return; }
 
-    const toProcess = Math.min(files.length, 5 - editPhotos.length);
-    for (let i = 0; i < toProcess; i++) {
-      try {
-        const compressed = await compressImage(files[i]);
-        setEditPhotos((prev) => [...prev, compressed]);
-      } catch {
-        setSaveError(`Photo ${i + 1} failed. Try smaller image.`);
+    try {
+      const image = await CapCamera.getPhoto({
+        quality: 75,
+        allowEditing: false,
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Camera,
+        width: 1200,
+        height: 1200,
+      });
+      if (!image.base64String) { setSaveError('No image data'); return; }
+      const mimeType = image.format === 'png' ? 'image/png' : 'image/jpeg';
+      const dataUrl = `data:${mimeType};base64,${image.base64String}`;
+      if (isBill) setEditBillPhotos((prev) => [...prev, dataUrl]);
+      else setEditPhotos((prev) => [...prev, dataUrl]);
+    } catch (err: any) {
+      if (!err?.message?.includes('cancel') && !err?.message?.includes('dismiss')) {
+        setSaveError(err?.message?.includes('permission') ? 'Camera permission denied. Check Settings > Apps > vlocker > Permissions' : 'Camera failed');
+      }
+    }
+  };
+
+  const pickEditPhotoFromGallery = async (isBill: boolean) => {
+    const maxCount = isBill ? 3 : 5;
+    const current = isBill ? editBillPhotos.length : editPhotos.length;
+    if (current >= maxCount) { setSaveError(`Maximum ${maxCount} photos`); return; }
+
+    try {
+      const image = await CapCamera.getPhoto({
+        quality: 75,
+        allowEditing: false,
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Photos,
+        width: 1200,
+        height: 1200,
+      });
+      if (!image.base64String) { setSaveError('No image data'); return; }
+      const mimeType = image.format === 'png' ? 'image/png' : 'image/jpeg';
+      const dataUrl = `data:${mimeType};base64,${image.base64String}`;
+      if (isBill) setEditBillPhotos((prev) => [...prev, dataUrl]);
+      else setEditPhotos((prev) => [...prev, dataUrl]);
+    } catch (err: any) {
+      if (!err?.message?.includes('cancel') && !err?.message?.includes('dismiss') && !err?.message?.includes('choose')) {
+        setSaveError(err?.message?.includes('permission') ? 'Storage permission denied. Check Settings > Apps > vlocker > Permissions' : 'Gallery failed');
       }
     }
   };
@@ -122,23 +158,6 @@ export default function ItemDetailScreen() {
     setEditPhotos((prev) => prev.filter((_, i) => i !== index));
     if (currentPhotoIndex >= index && currentPhotoIndex > 0) {
       setCurrentPhotoIndex((p) => p - 1);
-    }
-  };
-
-  const handleAddBillPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    e.target.value = '';
-    if (editBillPhotos.length >= 3) return;
-
-    const toProcess = Math.min(files.length, 3 - editBillPhotos.length);
-    for (let i = 0; i < toProcess; i++) {
-      try {
-        const compressed = await compressImage(files[i]);
-        setEditBillPhotos((prev) => [...prev, compressed]);
-      } catch {
-        setSaveError(`Bill photo ${i + 1} failed.`);
-      }
     }
   };
 
@@ -202,11 +221,10 @@ export default function ItemDetailScreen() {
         {/* Photo Carousel */}
         {editPhotos.length > 0 && (
           <div className="relative w-full aspect-square bg-[#0D1929]">
-            <img
-              src={editPhotos[currentPhotoIndex]}
-              alt={editName || item.name}
+            <PhotoImage
+              photoRef={editPhotos[currentPhotoIndex]}
+              alt={editName || item?.name || 'Photo'}
               className="w-full h-full object-cover"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />
             {editPhotos.length > 1 && (
               <>
@@ -298,22 +316,20 @@ export default function ItemDetailScreen() {
               <div className="mb-4">
                 <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">Photos ({editPhotos.length}/5)</label>
                 <div className="flex gap-3 mb-3">
-                  <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium relative cursor-pointer overflow-hidden active:scale-95 transition-all">
+                  <button onClick={() => takeEditPhoto(false)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:scale-95 transition-all">
                     <Camera className="w-4 h-4" />Add Photo
-                    <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={handleAddPhoto} className="absolute inset-0 opacity-0 cursor-pointer" />
-                  </label>
-                  <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium relative cursor-pointer overflow-hidden active:scale-95 transition-all">
+                  </button>
+                  <button onClick={() => pickEditPhotoFromGallery(false)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:scale-95 transition-all">
                     <ImageIcon className="w-4 h-4" />Gallery
-                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleAddPhoto} className="absolute inset-0 opacity-0 cursor-pointer" />
-                  </label>
+                  </button>
                 </div>
                 {editPhotos.length > 0 && (
                   <div className="flex gap-2 flex-wrap">
                     {editPhotos.map((photo, i) => (
                       <div key={i} className="relative">
-                        <img src={photo} alt={`Photo ${i + 1}`} className="photo-thumbnail"
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
+                        <PhotoImage photoRef={photo} alt={`Photo ${i + 1}`} className="photo-thumbnail" />
                         <button onClick={() => handleRemoveEditPhoto(i)}
                           className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                         ><X className="w-3 h-3 text-white" /></button>
@@ -329,22 +345,20 @@ export default function ItemDetailScreen() {
                   <Receipt className="w-3.5 h-3.5" />Bill / Certificate Photos ({editBillPhotos.length}/3)
                 </label>
                 <div className="flex gap-3 mb-3">
-                  <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium relative cursor-pointer overflow-hidden active:scale-95 transition-all">
+                  <button onClick={() => takeEditPhoto(true)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium active:scale-95 transition-all">
                     <Camera className="w-4 h-4" />Add Bill Photo
-                    <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={handleAddBillPhoto} className="absolute inset-0 opacity-0 cursor-pointer" />
-                  </label>
-                  <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium relative cursor-pointer overflow-hidden active:scale-95 transition-all">
+                  </button>
+                  <button onClick={() => pickEditPhotoFromGallery(true)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium active:scale-95 transition-all">
                     <ImageIcon className="w-4 h-4" />Gallery
-                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleAddBillPhoto} className="absolute inset-0 opacity-0 cursor-pointer" />
-                  </label>
+                  </button>
                 </div>
                 {editBillPhotos.length > 0 && (
                   <div className="flex gap-2 flex-wrap">
                     {editBillPhotos.map((photo, i) => (
                       <div key={i} className="relative">
-                        <img src={photo} alt={`Bill ${i + 1}`} className="photo-thumbnail border border-[#10B981]/30"
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
+                        <PhotoImage photoRef={photo} alt={`Bill ${i + 1}`} className="photo-thumbnail border border-[#10B981]/30" />
                         <button onClick={() => handleRemoveEditBillPhoto(i)}
                           className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                         ><X className="w-3 h-3 text-white" /></button>
@@ -435,12 +449,7 @@ export default function ItemDetailScreen() {
                       <button key={i} onClick={() => setCurrentPhotoIndex(i)}
                         className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-all ${i === currentPhotoIndex ? 'border-[#C9A84C]' : 'border-transparent'}`}
                       >
-                        <img
-                          src={photo}
-                          alt={`Photo ${i + 1}`}
-                          className="w-full h-full object-cover"
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
+                        <PhotoImage photoRef={photo} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
                       </button>
                     ))}
                   </div>
@@ -457,12 +466,7 @@ export default function ItemDetailScreen() {
                   <div className="flex gap-2 overflow-x-auto pb-2">
                     {item.billPhotos.map((photo, i) => (
                       <div key={i} className="flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden border-2 border-[#10B981]/40 relative">
-                        <img
-                          src={photo}
-                          alt={`Bill/Certificate ${i + 1}`}
-                          className="w-full h-full object-cover"
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
+                        <PhotoImage photoRef={photo} alt={`Bill/Certificate ${i + 1}`} className="w-full h-full object-cover" />
                         <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-center py-0.5">
                           <span className="text-[10px] text-[#10B981] font-medium">BILL</span>
                         </div>

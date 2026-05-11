@@ -11,7 +11,7 @@ import { APP_NAME } from '@/types';
 export default function SettingsScreen() {
   const { goBack, navigate } = useApp();
   const [itemCount, setItemCount] = useState(0);
-  const [storageUsed, setStorageUsed] = useState('0 B');
+  const [storageUsed, setStorageUsed] = useState<{ used: number; total: number }>({ used: 0, total: 50 * 1024 * 1024 });
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [showChangePin, setShowChangePin] = useState(false);
   const [showWipeConfirm, setShowWipeConfirm] = useState(false);
@@ -177,7 +177,7 @@ export default function SettingsScreen() {
           <div className="flex items-center gap-4 p-4 rounded-2xl card-vault">
             <div className="w-10 h-10 rounded-xl bg-[#10B981]/15 flex items-center justify-center"><HardDrive className="w-5 h-5 text-[#10B981]" /></div>
             <div className="flex-1"><p className="text-sm font-medium text-white">Storage Used</p><p className="text-xs text-[#8A94A6]">Total photo storage</p></div>
-            <span className="text-sm font-medium text-[#10B981]">{storageUsed}</span>
+            <span className="text-sm font-medium text-[#10B981]">{(storageUsed.used / 1024 / 1024).toFixed(1)} MB / {(storageUsed.total / 1024 / 1024).toFixed(0)} MB</span>
           </div>
         </div>
 

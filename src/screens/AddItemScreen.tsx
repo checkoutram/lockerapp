@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { useApp } from '@/context/AppContext';
 import { saveItem } from '@/utils/storage';
 import { generateUUID } from '@/utils/crypto';
@@ -24,25 +25,7 @@ function isJewelCategory(c: string): boolean {
   return JEWEL_CATEGORIES.includes(c as MainCategory);
 }
 
-// Toast type
 type Toast = { id: number; message: string; type: 'success' | 'error' | 'info' };
-
-// Max file size: 50MB (Samsung S24 Ultra 200MP photos can be 30-50MB)
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
-
-// Check if file is an image (including HEIC/HEIF)
-function isImageFile(file: File): boolean {
-  if (file.type.startsWith('image/')) return true;
-  const ext = file.name.split('.').pop()?.toLowerCase() || '';
-  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'].includes(ext);
-}
-
-// Format file size for display
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
 
 export default function AddItemScreen() {
   const { goBack } = useApp();
@@ -63,6 +46,7 @@ export default function AddItemScreen() {
   const [saveError, setSaveError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [isPickingPhoto, setIsPickingPhoto] = useState(false);
 
   const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const newId = Date.now() + Math.random();
@@ -132,182 +116,122 @@ export default function AddItemScreen() {
     return Object.keys(errs).length === 0;
   };
 
-  // ===== CORE: Process a single image file with detailed tracing =====
-  const processSingleFile = async (file: File, index: number, isBill: boolean): Promise<string | null> => {
+  // ===== NATIVE CAPACITOR CAMERA - TAKE PHOTO =====
+  const takePhoto = async (isBill: boolean) => {
     const prefix = isBill ? 'Bill' : 'Photo';
+    const maxCount = isBill ? 3 : 5;
+    const currentCount = isBill ? billPhotos.length : photos.length;
 
-    // Step 1: Check file size
-    addToast(`${prefix} ${index + 1}: ${formatSize(file.size)}`, 'info');
-    if (file.size > MAX_FILE_SIZE) {
-      addToast(`${prefix} ${index + 1}: Too large (max 50MB)`, 'error');
-      return null;
-    }
-    if (file.size === 0) {
-      addToast(`${prefix} ${index + 1}: Empty file`, 'error');
-      return null;
+    if (currentCount >= maxCount) {
+      addToast(`${prefix}: Maximum ${maxCount} reached`, 'error');
+      return;
     }
 
-    // Step 2: Check if it's an image
-    if (!isImageFile(file)) {
-      addToast(`${prefix} ${index + 1}: Not an image (${file.type || 'unknown type'})`, 'error');
-      return null;
-    }
+    setIsPickingPhoto(true);
+    addToast(`${prefix}: Opening camera...`, 'info');
 
-    // Step 3: Read file as data URL
-    addToast(`${prefix} ${index + 1}: Reading file...`, 'info');
-    let rawDataUrl: string;
     try {
-      rawDataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result as string;
-          if (result && result.length > 100) resolve(result);
-          else reject(new Error('File too small or empty'));
-        };
-        reader.onerror = () => reject(new Error('Cannot read file'));
-        reader.onabort = () => reject(new Error('Read cancelled'));
-        reader.readAsDataURL(file);
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Read failed';
-      addToast(`${prefix} ${index + 1}: Read error - ${msg}`, 'error');
-      return null;
-    }
-
-    // Step 4: Check if it's a data URL
-    if (!rawDataUrl.startsWith('data:')) {
-      addToast(`${prefix} ${index + 1}: Invalid file data`, 'error');
-      return null;
-    }
-
-    // Step 5: Try canvas compression
-    addToast(`${prefix} ${index + 1}: Compressing...`, 'info');
-    try {
-      const compressed = await new Promise<string>((resolve, reject) => {
-        const img = new Image();
-        let resolved = false;
-
-        const timer = setTimeout(() => {
-          if (!resolved) {
-            resolved = true;
-            reject(new Error('Image load timeout'));
-          }
-        }, 15000); // 15 second timeout
-
-        img.onload = () => {
-          if (resolved) return;
-          resolved = true;
-          clearTimeout(timer);
-
-          try {
-            let w = img.width;
-            let h = img.height;
-            if (w === 0 || h === 0) {
-              reject(new Error('Zero dimensions'));
-              return;
-            }
-
-            // Resize to max 800px (smaller = more reliable)
-            const MAX = 800;
-            if (w > MAX || h > MAX) {
-              const ratio = Math.min(MAX / w, MAX / h);
-              w = Math.round(w * ratio);
-              h = Math.round(h * ratio);
-            }
-
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-              reject(new Error('No canvas context'));
-              return;
-            }
-
-            // Fill black background first (handles transparent images)
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, w, h);
-            ctx.drawImage(img, 0, 0, w, h);
-
-            // Try JPEG first
-            let result = canvas.toDataURL('image/jpeg', 0.7);
-
-            // Validate result
-            if (!result || result.length < 100 || result === 'data:,') {
-              reject(new Error('Canvas output empty'));
-              return;
-            }
-
-            resolve(result);
-          } catch (err) {
-            reject(err instanceof Error ? err : new Error('Canvas error'));
-          }
-        };
-
-        img.onerror = () => {
-          if (resolved) return;
-          resolved = true;
-          clearTimeout(timer);
-          reject(new Error('Cannot load image'));
-        };
-
-        // Load the data URL - NO crossOrigin for data URLs!
-        img.src = rawDataUrl;
+      const image = await CapCamera.getPhoto({
+        quality: 75,
+        allowEditing: false,
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Camera,
+        width: 1200,
+        height: 1200,
       });
 
-      addToast(`${prefix} ${index + 1}: Done (${formatSize(compressed.length * 0.75)})`, 'success');
-      return compressed;
-    } catch (err) {
-      // Canvas failed - try raw data URL as fallback
-      const msg = err instanceof Error ? err.message : 'Compression failed';
-      addToast(`${prefix} ${index + 1}: ${msg}, using original...`, 'info');
-
-      // Check if raw is usable
-      if (rawDataUrl.length > 5 * 1024 * 1024) { // > ~3.7MB actual
-        addToast(`${prefix} ${index + 1}: Original too large to store`, 'error');
-        return null;
+      if (!image.base64String) {
+        addToast(`${prefix}: No image data returned`, 'error');
+        setIsPickingPhoto(false);
+        return;
       }
-      return rawDataUrl;
+
+      const mimeType = image.format === 'png' ? 'image/png' : 'image/jpeg';
+      const dataUrl = `data:${mimeType};base64,${image.base64String}`;
+
+      if (isBill) {
+        setBillPhotos((prev) => [...prev, dataUrl]);
+      } else {
+        setPhotos((prev) => [...prev, dataUrl]);
+      }
+      addToast(`${prefix} saved (${(image.base64String.length * 0.75 / 1024).toFixed(0)}KB)`, 'success');
+
+    } catch (err: any) {
+      const msg = err?.message || 'Camera failed';
+      if (msg.includes('cancel') || msg.includes('dismiss')) {
+        addToast(`${prefix}: Cancelled`, 'info');
+      } else if (msg.includes('permission') || msg.includes('Permission')) {
+        addToast(`${prefix}: Camera permission denied. Go to Settings > Apps > vlocker > Permissions > Camera > Allow`, 'error');
+      } else {
+        addToast(`${prefix}: ${msg}`, 'error');
+      }
+    } finally {
+      setIsPickingPhoto(false);
     }
   };
 
-  // ===== PHOTO INPUT HANDLER =====
-  const handlePhotoInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  // ===== NATIVE CAPACITOR CAMERA - PICK FROM GALLERY =====
+  const pickFromGallery = async (isBill: boolean) => {
+    const prefix = isBill ? 'Bill' : 'Photo';
+    const maxCount = isBill ? 3 : 5;
+    const currentCount = isBill ? billPhotos.length : photos.length;
 
-    // Reset input immediately
-    try { e.target.value = ''; } catch { /* ignore */ }
-
-    // Validate files
-    if (!files || files.length === 0) {
-      addToast('No file selected', 'error');
+    if (currentCount >= maxCount) {
+      addToast(`${prefix}: Maximum ${maxCount} reached`, 'error');
       return;
     }
 
-    // Check slots
-    const remainingSlots = 5 - photos.length;
-    if (remainingSlots <= 0) {
-      addToast('Maximum 5 photos reached', 'error');
-      return;
-    }
+    setIsPickingPhoto(true);
+    addToast(`${prefix}: Opening gallery...`, 'info');
 
-    addToast(`Selected ${files.length} file(s), ${remainingSlots} slots left`, 'info');
-    const toProcess = Math.min(files.length, remainingSlots);
+    try {
+      // On Android, we need to pick one at a time since Capacitor Camera
+      // doesn't support multiple selection from gallery in a single call
+      const slotsLeft = maxCount - currentCount;
 
-    for (let i = 0; i < toProcess; i++) {
-      const file = files[i];
-      if (!file) {
-        addToast(`File ${i + 1}: Missing`, 'error');
-        continue;
-      }
-
-      const result = await processSingleFile(file, i, false);
-      if (result) {
-        setPhotos((prev) => {
-          if (prev.length >= 5) return prev;
-          return [...prev, result];
+      for (let i = 0; i < slotsLeft; i++) {
+        const image = await CapCamera.getPhoto({
+          quality: 75,
+          allowEditing: false,
+          resultType: CameraResultType.Base64,
+          source: CameraSource.Photos,
+          width: 1200,
+          height: 1200,
         });
+
+        if (!image.base64String) {
+          addToast(`${prefix}: No image data`, 'error');
+          break;
+        }
+
+        const mimeType = image.format === 'png' ? 'image/png' : 'image/jpeg';
+        const dataUrl = `data:${mimeType};base64,${image.base64String}`;
+
+        if (isBill) {
+          setBillPhotos((prev) => [...prev, dataUrl]);
+        } else {
+          setPhotos((prev) => [...prev, dataUrl]);
+        }
+        addToast(`${prefix} ${i + 1} saved (${(image.base64String.length * 0.75 / 1024).toFixed(0)}KB)`, 'success');
+
+        // Ask if they want to pick more
+        if (i < slotsLeft - 1) {
+          // Small delay to let the toast show
+          await new Promise((r) => setTimeout(r, 300));
+        }
       }
+
+    } catch (err: any) {
+      const msg = err?.message || 'Gallery failed';
+      if (msg.includes('cancel') || msg.includes('dismiss') || msg.includes('choose')) {
+        addToast('Gallery closed', 'info');
+      } else if (msg.includes('permission') || msg.includes('Permission')) {
+        addToast('Storage permission denied. Go to Settings > Apps > vlocker > Permissions > Storage > Allow', 'error');
+      } else {
+        addToast(`${prefix}: ${msg}`, 'error');
+      }
+    } finally {
+      setIsPickingPhoto(false);
     }
   };
 
@@ -316,35 +240,9 @@ export default function AddItemScreen() {
     addToast('Photo removed', 'info');
   };
 
-  // ===== BILL PHOTO HANDLER =====
-  const handleBillInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    try { e.target.value = ''; } catch { /* ignore */ }
-
-    if (!files || files.length === 0) {
-      addToast('No file selected', 'error');
-      return;
-    }
-
-    const remainingSlots = 3 - billPhotos.length;
-    if (remainingSlots <= 0) {
-      addToast('Maximum 3 bill photos reached', 'error');
-      return;
-    }
-
-    const toProcess = Math.min(files.length, remainingSlots);
-    for (let i = 0; i < toProcess; i++) {
-      const file = files[i];
-      if (!file) continue;
-
-      const result = await processSingleFile(file, i, true);
-      if (result) {
-        setBillPhotos((prev) => {
-          if (prev.length >= 3) return prev;
-          return [...prev, result];
-        });
-      }
-    }
+  const removeBillPhoto = (index: number) => {
+    setBillPhotos((prev) => prev.filter((_, i) => i !== index));
+    addToast('Bill photo removed', 'info');
   };
 
   // ===== SAVE =====
@@ -352,8 +250,6 @@ export default function AddItemScreen() {
     if (!validate()) return;
     setIsSaving(true);
     setSaveError('');
-
-    addToast(`Saving with ${photos.length} photos...`, 'info');
 
     const item: LockerItem = {
       id: generateUUID(),
@@ -371,6 +267,7 @@ export default function AddItemScreen() {
       billPhotos,
     };
 
+    addToast(`Saving ${photos.length} photos...`, 'info');
     const result = await saveItem(item);
     setIsSaving(false);
 
@@ -399,9 +296,8 @@ export default function AddItemScreen() {
     ctx.font = 'bold 24px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('TEST', 100, 110);
-    const dataUrl = canvas.toDataURL('image/png');
-    setPhotos((prev) => [...prev, dataUrl]);
-    addToast(`Test photo added (${formatSize(dataUrl.length * 0.75)})`, 'success');
+    setPhotos((prev) => [...prev, canvas.toDataURL('image/png')]);
+    addToast('Test photo added', 'success');
   };
 
   const weightHint = [
@@ -414,30 +310,29 @@ export default function AddItemScreen() {
     !(category === 'Other' && !categoryCustom.trim()) &&
     !((isJewelCategory(category) || category === 'Documents') && !subType);
 
-  // File Input Button - transparent overlay pattern
-  const FileInputBtn = ({
-    onChange, multiple, capture, icon: Icon, label, color,
+  // Photo button component
+  const PhotoButton = ({
+    onClick,
+    icon: Icon,
+    label,
+    color,
+    disabled,
   }: {
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    multiple?: boolean;
-    capture?: boolean;
+    onClick: () => void;
     icon: React.ElementType;
     label: string;
     color: string;
+    disabled?: boolean;
   }) => (
-    <label className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer relative overflow-hidden ${color}`}>
-      <Icon className="w-4 h-4 pointer-events-none flex-shrink-0" />
-      <span className="pointer-events-none">{label}</span>
-      <input
-        type="file"
-        {...(capture ? { accept: 'image/*', capture: 'environment' } : {})}
-        {...(!capture ? {} : {})}
-        {...(multiple ? { multiple: true } : {})}
-        onChange={onChange}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        style={{ fontSize: '100px' }}
-      />
-    </label>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] ${color} text-sm font-medium transition-all select-none
+        ${disabled ? 'opacity-50 cursor-not-allowed' : 'active:bg-[#1A3A5C] active:scale-95 cursor-pointer'}`}
+    >
+      <Icon className="w-4 h-4 flex-shrink-0" />
+      <span>{label}</span>
+    </button>
   );
 
   return (
@@ -625,19 +520,30 @@ export default function AddItemScreen() {
           </div>
         </div>
 
-        {/* === PHOTOS === */}
+        {/* === PHOTOS - NATIVE CAPACITOR CAMERA === */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-[#8A94A6] uppercase tracking-wider">Photos ({photos.length}/5)</span>
             <button onClick={addTestPhoto} className="text-[10px] text-[#8A94A6]/50 underline">Debug: Test</button>
           </div>
 
+          {/* Native Camera Buttons */}
           <div className="flex gap-3 mb-3">
-            <FileInputBtn onChange={handlePhotoInputChange} capture icon={Camera} label="Take Photo" color="text-[#C9A84C]" />
-            <FileInputBtn onChange={handlePhotoInputChange} multiple icon={ImageIcon} label="Gallery" color="text-[#C9A84C]" />
+            <PhotoButton
+              onClick={() => takePhoto(false)}
+              icon={Camera}
+              label="Take Photo"
+              color="text-[#C9A84C]"
+              disabled={isPickingPhoto}
+            />
+            <PhotoButton
+              onClick={() => pickFromGallery(false)}
+              icon={ImageIcon}
+              label="Gallery"
+              color="text-[#C9A84C]"
+              disabled={isPickingPhoto}
+            />
           </div>
-
-          {errors.photo && <p className="text-xs text-red-400 mb-2">{errors.photo}</p>}
 
           {/* Photo thumbnails */}
           {photos.length > 0 && (
@@ -658,7 +564,7 @@ export default function AddItemScreen() {
           )}
         </div>
 
-        {/* === BILL PHOTOS === */}
+        {/* === BILL PHOTOS - NATIVE CAPACITOR CAMERA === */}
         <div className="mb-5">
           <button onClick={() => setShowBillSection((v) => !v)}
             className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] active:bg-[#1A3A5C] active:scale-[0.98] transition-all"
@@ -678,11 +584,21 @@ export default function AddItemScreen() {
           {showBillSection && (
             <div className="mt-3 animate-fade-in">
               <div className="flex gap-3 mb-3">
-                <FileInputBtn onChange={handleBillInputChange} capture icon={Camera} label="Take Photo" color="text-[#10B981]" />
-                <FileInputBtn onChange={handleBillInputChange} multiple icon={ImageIcon} label="Gallery" color="text-[#10B981]" />
+                <PhotoButton
+                  onClick={() => takePhoto(true)}
+                  icon={Camera}
+                  label="Take Photo"
+                  color="text-[#10B981]"
+                  disabled={isPickingPhoto}
+                />
+                <PhotoButton
+                  onClick={() => pickFromGallery(true)}
+                  icon={ImageIcon}
+                  label="Gallery"
+                  color="text-[#10B981]"
+                  disabled={isPickingPhoto}
+                />
               </div>
-
-              {errors.billPhoto && <p className="text-xs text-red-400 mb-2">{errors.billPhoto}</p>}
 
               {billPhotos.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
@@ -691,7 +607,7 @@ export default function AddItemScreen() {
                       <img src={photo} alt={`Bill ${index + 1}`}
                         className="w-20 h-20 rounded-xl object-cover border-2 border-[#10B981]/40 bg-[#111D2E]"
                       />
-                      <button onClick={() => { setBillPhotos((p) => p.filter((_, i) => i !== index)); addToast('Removed', 'info'); }}
+                      <button onClick={() => removeBillPhoto(index)}
                         className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                       ><X className="w-3 h-3 text-white" /></button>
                     </div>
@@ -730,7 +646,8 @@ export default function AddItemScreen() {
             </span>
           ) : (
             `Save to ${APP_NAME}`
-          )}
+          )
+          }
         </button>
       </div>
     </div>
