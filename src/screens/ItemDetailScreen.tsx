@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, Check } from 'lucide-react';
+import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, Check, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { useApp } from '@/context/AppContext';
 import { getItems, deleteItem, updateItem } from '@/utils/storage';
@@ -31,6 +31,14 @@ export default function ItemDetailScreen() {
   const [editWeightAmount, setEditWeightAmount] = useState('');
   const [editWeightUnit, setEditWeightUnit] = useState<WeightUnit>('g');
   const [editPieceCount, setEditPieceCount] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([]);
+
+  const addToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
+  }, []);
 
   const loadItem = useCallback(async () => {
     if (!selectedItemId) return;
@@ -46,6 +54,7 @@ export default function ItemDetailScreen() {
       setEditWeightAmount(found.weightAmount);
       setEditWeightUnit(found.weightUnit);
       setEditPieceCount(found.pieceCount);
+      setEditDate(new Date(found.dateAdded).toISOString().split('T')[0]);
     }
     setLoaded(true);
   }, [selectedItemId]);
@@ -57,6 +66,7 @@ export default function ItemDetailScreen() {
   const handleDelete = async () => {
     if (!item) return;
     await deleteItem(item.id);
+    addToast(`"${item.name}" deleted`, 'success');
     goBack();
   };
 
@@ -74,6 +84,7 @@ export default function ItemDetailScreen() {
       weightAmount: editWeightAmount,
       weightUnit: editWeightUnit,
       pieceCount: editPieceCount,
+      dateAdded: new Date(editDate).toISOString(),
     };
 
     const result = await updateItem(updated);
@@ -83,6 +94,7 @@ export default function ItemDetailScreen() {
       setItem(updated);
       setIsEditing(false);
       setSaveError('');
+      addToast('Changes saved', 'success');
     } else {
       setSaveError(result.error || 'Failed to save changes.');
     }
@@ -98,6 +110,7 @@ export default function ItemDetailScreen() {
     setEditWeightAmount(item.weightAmount);
     setEditWeightUnit(item.weightUnit);
     setEditPieceCount(item.pieceCount);
+    setEditDate(new Date(item.dateAdded).toISOString().split('T')[0]);
     setIsEditing(false);
   };
 
@@ -206,6 +219,21 @@ export default function ItemDetailScreen() {
 
   return (
     <div className="h-full flex flex-col bg-[#0A1628] relative">
+      {/* Toast Notifications */}
+      <div className="fixed top-4 left-0 right-0 z-[100] flex flex-col items-center gap-2 pointer-events-none px-4">
+        {toasts.map((toast) => (
+          <div key={toast.id}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto animate-fade-in max-w-[90%] ${
+              toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+            }`}
+          >
+            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+            <span className="truncate">{toast.message}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
       <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1A3A5C]/50">
         <button onClick={goBack} className="p-2 -ml-2 rounded-full active:bg-white/5">
@@ -281,7 +309,6 @@ export default function ItemDetailScreen() {
                   <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">Weight / Quantity</label>
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className="text-[10px] text-[#8A94A6] mb-1 block">Amount</label>
                       <input type="text" inputMode="decimal" value={editWeightAmount}
                         onChange={(e) => setEditWeightAmount(e.target.value.replace(/[^0-9.]/g, '').slice(0, 8))}
                         className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white text-sm focus:border-[#C9A84C]/50 transition-colors"
@@ -311,6 +338,18 @@ export default function ItemDetailScreen() {
                   )}
                 </div>
               )}
+
+              {/* Edit Date */}
+              <div className="mb-4">
+                <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">Date Added</label>
+                <div className="relative">
+                  <input type="date" value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white text-sm focus:border-[#C9A84C]/50 transition-colors appearance-none"
+                  />
+                  <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A94A6] pointer-events-none" />
+                </div>
+              </div>
 
               {/* Edit Photos */}
               <div className="mb-4">

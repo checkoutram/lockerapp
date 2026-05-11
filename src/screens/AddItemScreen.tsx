@@ -280,26 +280,6 @@ export default function AddItemScreen() {
     }
   };
 
-  // Debug test photo
-  const addTestPhoto = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 200;
-    canvas.height = 200;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const grad = ctx.createLinearGradient(0, 0, 200, 200);
-    grad.addColorStop(0, '#C9A84C');
-    grad.addColorStop(1, '#0A1628');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 200, 200);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 24px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('TEST', 100, 110);
-    setPhotos((prev) => [...prev, canvas.toDataURL('image/png')]);
-    addToast('Test photo added', 'success');
-  };
-
   const weightHint = [
     weightAmount,
     weightUnit,
@@ -464,7 +444,6 @@ export default function AddItemScreen() {
             <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-3 block">Weight / Quantity</label>
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="text-[10px] text-[#8A94A6] mb-1 block">Amount</label>
                 <input type="text" inputMode="decimal" value={weightAmount}
                   onChange={(e) => handleWeightAmountChange(e.target.value)}
                   placeholder="e.g., 22.5" maxLength={8}
@@ -522,9 +501,8 @@ export default function AddItemScreen() {
 
         {/* === PHOTOS - NATIVE CAPACITOR CAMERA === */}
         <div className="mb-5">
-          <div className="flex items-center justify-between mb-2">
+          <div className="mb-2">
             <span className="text-xs text-[#8A94A6] uppercase tracking-wider">Photos ({photos.length}/5)</span>
-            <button onClick={addTestPhoto} className="text-[10px] text-[#8A94A6]/50 underline">Debug: Test</button>
           </div>
 
           {/* Native Camera Buttons */}

@@ -44,6 +44,8 @@ export const MAIN_CATEGORIES: MainCategory[] = [
 
 export const JEWELLERY_SUBTYPES = [
   'Necklace',
+  'Chain',
+  'Pendant',
   'Bangle',
   'Bracelet',
   'Ring',

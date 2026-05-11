@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ChevronLeft, KeyRound, Fingerprint, Package, HardDrive,
-  Download, AlertTriangle, ChevronRight, Check, Eye, EyeOff,
+  Download, AlertTriangle, ChevronRight, Check, Eye, EyeOff, LogOut,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { SecureStore, AsyncStorage, getItems, getStorageUsed, wipeAllData } from '@/utils/storage';
@@ -9,7 +9,7 @@ import { digestStringAsync } from '@/utils/crypto';
 import { APP_NAME } from '@/types';
 
 export default function SettingsScreen() {
-  const { goBack, navigate } = useApp();
+  const { goBack, navigate, logout } = useApp();
   const [itemCount, setItemCount] = useState(0);
   const [storageUsed, setStorageUsed] = useState<{ used: number; total: number }>({ used: 0, total: 50 * 1024 * 1024 });
   const [biometricEnabled, setBiometricEnabled] = useState(false);
@@ -152,7 +152,7 @@ export default function SettingsScreen() {
             </div>
             <ChevronRight className="w-4 h-4 text-[#8A94A6]" />
           </button>
-          <div className="flex items-center gap-4 p-4 rounded-2xl card-vault">
+          <div className="flex items-center gap-4 p-4 rounded-2xl card-vault mb-3">
             <div className="w-10 h-10 rounded-xl bg-[#C9A84C]/15 flex items-center justify-center"><Fingerprint className="w-5 h-5 text-[#C9A84C]" /></div>
             <div className="flex-1">
               <p className="text-sm font-medium text-white">Biometric Auth</p>
@@ -164,6 +164,16 @@ export default function SettingsScreen() {
               <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${biometricEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
           </div>
+          <button onClick={logout}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl card-vault active:scale-[0.98] transition-transform"
+          >
+            <div className="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center"><LogOut className="w-5 h-5 text-red-400" /></div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-medium text-white">Log Out</p>
+              <p className="text-xs text-[#8A94A6]">End session and return to login</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-[#8A94A6]" />
+          </button>
         </div>
 
         {/* Storage */}
@@ -198,9 +208,9 @@ export default function SettingsScreen() {
           </button>
         </div>
 
-        {/* Danger Zone */}
+        {/* Warning */}
         <div className="mb-6">
-          <h3 className="text-xs text-red-400 uppercase tracking-wider mb-3 px-1">Danger Zone</h3>
+          <h3 className="text-xs text-red-400 uppercase tracking-wider mb-3 px-1">Warning</h3>
           <button onClick={() => setShowWipeConfirm(true)}
             className="w-full flex items-center gap-4 p-4 rounded-2xl bg-red-500/5 border border-red-500/20 active:scale-[0.98] transition-transform"
           >

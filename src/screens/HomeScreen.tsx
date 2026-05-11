@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Lock, Plus, Settings, ImageIcon, Trash2, Eye, Scale, Receipt } from 'lucide-react';
+import { Lock, Plus, Settings, ImageIcon, Trash2, Eye, Scale, Receipt, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { getItems, deleteItem } from '@/utils/storage';
 import PhotoImage from '@/components/PhotoImage';
 import type { LockerItem } from '@/types';
 import { CATEGORY_COLORS, APP_NAME } from '@/types';
+
+type Toast = { id: number; message: string; type: 'success' | 'error' };
 
 export default function HomeScreen() {
   const { navigate } = useApp();
@@ -12,6 +14,15 @@ export default function HomeScreen() {
   const [contextMenu, setContextMenu] = useState<{ item: LockerItem; x: number; y: number } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<LockerItem | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const addToast = useCallback((message: string, type: Toast['type'] = 'success') => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+  }, []);
 
   const loadItems = useCallback(async () => {
     const data = await getItems();
@@ -27,6 +38,7 @@ export default function HomeScreen() {
     await deleteItem(item.id);
     setDeleteConfirm(null);
     setContextMenu(null);
+    addToast(`"${item.name}" deleted`, 'success');
     loadItems();
   };
 
@@ -42,6 +54,20 @@ export default function HomeScreen() {
 
   return (
     <div className="h-full flex flex-col bg-[#0A1628] relative">
+      {/* Toast Notifications */}
+      <div className="fixed top-4 left-0 right-0 z-[100] flex flex-col items-center gap-2 pointer-events-none px-4">
+        {toasts.map((toast) => (
+          <div key={toast.id}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto animate-fade-in max-w-[90%] ${
+              toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+            }`}
+          >
+            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+            <span className="truncate">{toast.message}</span>
+          </div>
+        ))}
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-6 pb-3">
         <div className="flex items-center gap-2">
