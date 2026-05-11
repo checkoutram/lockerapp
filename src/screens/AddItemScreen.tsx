@@ -24,49 +24,8 @@ function isJewelCategory(c: string): boolean {
   return JEWEL_CATEGORIES.includes(c as MainCategory);
 }
 
-// Toast notification type
+// Toast type
 type Toast = { id: number; message: string; type: 'success' | 'error' | 'info' };
-
-// Compress image file to base64 JPEG using canvas
-function compressImageFile(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const result = evt.target?.result as string;
-      if (!result) { reject(new Error('Failed to read file')); return; }
-
-      const img = new Image();
-      img.onload = () => {
-        try {
-          let w = img.width;
-          let h = img.height;
-          // Resize to max 1200px (Samsung S24 takes huge photos)
-          const MAX_SIZE = 1200;
-          if (w > MAX_SIZE || h > MAX_SIZE) {
-            const ratio = Math.min(MAX_SIZE / w, MAX_SIZE / h);
-            w = Math.round(w * ratio);
-            h = Math.round(h * ratio);
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) { resolve(result); return; }
-          ctx.drawImage(img, 0, 0, w, h);
-          const compressed = canvas.toDataURL('image/jpeg', 0.75);
-          resolve(compressed);
-        } catch (err) {
-          // If canvas fails, return original
-          resolve(result);
-        }
-      };
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = result;
-    };
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
-}
 
 export default function AddItemScreen() {
   const { goBack } = useApp();
@@ -88,19 +47,13 @@ export default function AddItemScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Unique IDs for file inputs (needed for label association)
-  const photoCameraId = 'photo-camera-input';
-  const photoGalleryId = 'photo-gallery-input';
-  const billCameraId = 'bill-camera-input';
-  const billGalleryId = 'bill-gallery-input';
-
-  let toastIdCounter = 0;
   const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
-    const id = ++toastIdCounter;
-    setToasts((prev) => [...prev, { id, message, type }]);
+    const newId = Date.now() + Math.random();
+    const toast = { id: newId, message, type };
+    setToasts((prev) => [...prev, toast]);
     setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+      setToasts((prev) => prev.filter((t) => t.id !== newId));
+    }, 4000);
   }, []);
 
   const availableSubTypes =
@@ -163,53 +116,115 @@ export default function AddItemScreen() {
     return Object.keys(errs).length === 0;
   };
 
-  // === PHOTO HANDLING - ROBUST VERSION FOR SAMSUNG ===
-  // Step 1: File input change handler
-  const handlePhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ===== CORE PHOTO PROCESSING - MULTI-FALLBACK =====
+  const processImageFile = async (file: File): Promise<string> => {
+    // Strategy 1: Read file as data URL
+    const rawDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        if (result && result.startsWith('data:')) resolve(result);
+        else reject(new Error('Invalid file data'));
+      };
+      reader.onerror = () => reject(new Error('File read failed'));
+      reader.readAsDataURL(file);
+    });
+
+    // Strategy 2: Try canvas compression
+    try {
+      const compressed = await new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            let w = img.width;
+            let h = img.height;
+            const MAX = 1000;
+            if (w > MAX || h > MAX) {
+              const ratio = Math.min(MAX / w, MAX / h);
+              w = Math.round(w * ratio);
+              h = Math.round(h * ratio);
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { reject(new Error('No canvas context')); return; }
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            const result = canvas.toDataURL('image/jpeg', 0.7);
+            if (result && result.length > 100) resolve(result);
+            else reject(new Error('Empty canvas output'));
+          } catch (err) {
+            reject(err);
+          }
+        };
+        img.onerror = () => reject(new Error('Image load failed'));
+        // Add crossOrigin to avoid tainting issues
+        img.crossOrigin = 'anonymous';
+        img.src = rawDataUrl;
+      });
+      return compressed;
+    } catch {
+      // Strategy 3: Fallback to raw data URL (no compression)
+      return rawDataUrl;
+    }
+  };
+
+  // ===== PHOTO INPUT HANDLER =====
+  const handlePhotoInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
+    // CRITICAL: Reset input immediately so it can be reused
+    e.target.value = '';
+
     if (!files || files.length === 0) {
-      addToast('No file selected', 'error');
+      addToast('No photo selected', 'error');
       return;
     }
 
-    // Reset input so same file can be selected again
-    e.target.value = '';
+    addToast(`Selected ${files.length} file(s)`, 'info');
 
     const remainingSlots = 5 - photos.length;
     if (remainingSlots <= 0) {
-      addToast('Maximum 5 photos allowed', 'error');
+      addToast('Maximum 5 photos reached', 'error');
       return;
     }
 
     const toProcess = Math.min(files.length, remainingSlots);
-    addToast(`Processing ${toProcess} photo${toProcess > 1 ? 's' : ''}...`, 'info');
 
     for (let i = 0; i < toProcess; i++) {
       const file = files[i];
+      addToast(`Processing photo ${i + 1}...`, 'info');
 
-      // Validate file type
+      // Validate
       if (!file.type.startsWith('image/')) {
-        addToast(`Skipped: ${file.name} is not an image`, 'error');
+        addToast(`Not an image: ${file.name || 'file'}`, 'error');
+        continue;
+      }
+      if (file.size === 0) {
+        addToast('Empty file, skipped', 'error');
         continue;
       }
 
       try {
-        // Compress to base64 for storage
-        const dataUrl = await compressImageFile(file);
+        const dataUrl = await processImageFile(file);
 
-        // Validate the result
-        if (!dataUrl || !dataUrl.startsWith('data:')) {
-          addToast('Photo processing failed - invalid output', 'error');
+        // Validate result
+        if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+          addToast('Photo processing failed', 'error');
           continue;
         }
 
-        // Add to state for display
-        setPhotos((prev) => [...prev, dataUrl]);
-        addToast(`Photo ${i + 1} added`, 'success');
+        // Use functional update to ensure fresh state
+        setPhotos((prevPhotos) => {
+          if (prevPhotos.length >= 5) return prevPhotos;
+          return [...prevPhotos, dataUrl];
+        });
+        addToast(`Photo ${i + 1} added (${(dataUrl.length / 1024).toFixed(0)}KB)`, 'success');
 
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error';
-        addToast(`Photo ${i + 1} failed: ${msg}`, 'error');
+        const msg = err instanceof Error ? err.message : 'Failed';
+        addToast(`Photo ${i + 1} error: ${msg}`, 'error');
       }
     }
   };
@@ -219,47 +234,45 @@ export default function AddItemScreen() {
     addToast('Photo removed', 'info');
   };
 
-  // === BILL PHOTO HANDLING ===
-  const handleBillFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ===== BILL PHOTO INPUT HANDLER =====
+  const handleBillInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
+    e.target.value = '';
+
     if (!files || files.length === 0) {
       addToast('No file selected', 'error');
       return;
     }
 
-    e.target.value = '';
-
     const remainingSlots = 3 - billPhotos.length;
     if (remainingSlots <= 0) {
-      addToast('Maximum 3 bill photos allowed', 'error');
+      addToast('Maximum 3 bill photos reached', 'error');
       return;
     }
 
     const toProcess = Math.min(files.length, remainingSlots);
-    addToast(`Processing ${toProcess} bill photo${toProcess > 1 ? 's' : ''}...`, 'info');
 
     for (let i = 0; i < toProcess; i++) {
       const file = files[i];
-
       if (!file.type.startsWith('image/')) {
-        addToast(`Skipped: ${file.name} is not an image`, 'error');
+        addToast(`Not an image: ${file.name || 'file'}`, 'error');
         continue;
       }
 
       try {
-        const dataUrl = await compressImageFile(file);
-
-        if (!dataUrl || !dataUrl.startsWith('data:')) {
+        const dataUrl = await processImageFile(file);
+        if (!dataUrl || !dataUrl.startsWith('data:image/')) {
           addToast('Bill photo processing failed', 'error');
           continue;
         }
-
-        setBillPhotos((prev) => [...prev, dataUrl]);
+        setBillPhotos((prev) => {
+          if (prev.length >= 3) return prev;
+          return [...prev, dataUrl];
+        });
         addToast(`Bill photo ${i + 1} added`, 'success');
-
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error';
-        addToast(`Bill photo ${i + 1} failed: ${msg}`, 'error');
+        const msg = err instanceof Error ? err.message : 'Failed';
+        addToast(`Bill photo error: ${msg}`, 'error');
       }
     }
   };
@@ -269,7 +282,7 @@ export default function AddItemScreen() {
     addToast('Bill photo removed', 'info');
   };
 
-  // === SAVE ===
+  // ===== SAVE =====
   const handleSave = async () => {
     if (!validate()) return;
     setIsSaving(true);
@@ -303,7 +316,7 @@ export default function AddItemScreen() {
     }
   };
 
-  // Debug test photo
+  // Test photo for debugging
   const addTestPhoto = () => {
     const canvas = document.createElement('canvas');
     canvas.width = 200;
@@ -332,6 +345,47 @@ export default function AddItemScreen() {
   const isValid = name.trim().length > 0 && category !== '' &&
     !(category === 'Other' && !categoryCustom.trim()) &&
     !((isJewelCategory(category) || category === 'Documents') && !subType);
+
+  // ===== FILE INPUT BUTTON COMPONENT =====
+  // Uses the transparent overlay pattern - input is inside label, opacity 0, covers full area
+  // This is the most reliable pattern for ALL browsers including Chrome on Android
+  const FileInputButton = ({
+    onChange,
+    acceptMultiple = false,
+    capture = false,
+    icon: Icon,
+    label,
+    colorClass,
+  }: {
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    acceptMultiple?: boolean;
+    capture?: boolean;
+    icon: React.ElementType;
+    label: string;
+    colorClass: string;
+  }) => (
+    <label className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] ${colorClass} text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer relative overflow-hidden`}>
+      <Icon className="w-4 h-4 pointer-events-none" />
+      <span className="pointer-events-none">{label}</span>
+      <input
+        type="file"
+        accept="image/*"
+        {...(capture ? { capture: 'environment' } : {})}
+        {...(acceptMultiple ? { multiple: true } : {})}
+        onChange={onChange}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          opacity: 0,
+          cursor: 'pointer',
+          fontSize: '100px', // ensures input is clickable on all devices
+        }}
+      />
+    </label>
+  );
 
   return (
     <div className="h-full flex flex-col bg-[#0A1628] relative">
@@ -518,45 +572,29 @@ export default function AddItemScreen() {
           </div>
         </div>
 
-        {/* === PHOTOS - SAMSUNG-COMPATIBLE === */}
+        {/* === PHOTOS - TRANSPARENT OVERLAY PATTERN === */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-[#8A94A6] uppercase tracking-wider">Photos ({photos.length}/5)</span>
-            <button onClick={addTestPhoto} className="text-[10px] text-[#8A94A6]/50 underline">Debug: Add Test</button>
+            <button onClick={addTestPhoto} className="text-[10px] text-[#8A94A6]/50 underline">Debug: Test</button>
           </div>
 
-          {/* Hidden file inputs - triggered by LABEL click (works on ALL browsers) */}
-          <input
-            id={photoCameraId}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handlePhotoFileChange}
-            className="sr-only"
-          />
-          <input
-            id={photoGalleryId}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handlePhotoFileChange}
-            className="sr-only"
-          />
-
-          {/* Photo action buttons using LABEL elements */}
+          {/* Buttons use transparent overlay input pattern */}
           <div className="flex gap-3 mb-3">
-            <label
-              htmlFor={photoCameraId}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer"
-            >
-              <Camera className="w-4 h-4" />Take Photo
-            </label>
-            <label
-              htmlFor={photoGalleryId}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer"
-            >
-              <ImageIcon className="w-4 h-4" />Gallery
-            </label>
+            <FileInputButton
+              onChange={handlePhotoInputChange}
+              capture
+              icon={Camera}
+              label="Take Photo"
+              colorClass="text-[#C9A84C]"
+            />
+            <FileInputButton
+              onChange={handlePhotoInputChange}
+              acceptMultiple
+              icon={ImageIcon}
+              label="Gallery"
+              colorClass="text-[#C9A84C]"
+            />
           </div>
 
           {errors.photo && <p className="text-xs text-red-400 mb-2">{errors.photo}</p>}
@@ -570,10 +608,7 @@ export default function AddItemScreen() {
                     src={photo}
                     alt={`Photo ${index + 1}`}
                     className="w-20 h-20 rounded-xl object-cover border-2 border-[#C9A84C]/40 bg-[#111D2E]"
-                    onError={() => {
-                      // If image fails to load, show error
-                      addToast(`Photo ${index + 1} failed to display`, 'error');
-                    }}
+                    onError={() => addToast(`Photo ${index + 1} display error`, 'error')}
                   />
                   <button onClick={() => removePhoto(index)}
                     className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
@@ -584,7 +619,7 @@ export default function AddItemScreen() {
           )}
         </div>
 
-        {/* === BILL PHOTOS - SAMSUNG-COMPATIBLE === */}
+        {/* === BILL PHOTOS - TRANSPARENT OVERLAY PATTERN === */}
         <div className="mb-5">
           <button onClick={() => setShowBillSection((v) => !v)}
             className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] active:bg-[#1A3A5C] active:scale-[0.98] transition-all"
@@ -603,36 +638,21 @@ export default function AddItemScreen() {
 
           {showBillSection && (
             <div className="mt-3 animate-fade-in">
-              <input
-                id={billCameraId}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleBillFileChange}
-                className="sr-only"
-              />
-              <input
-                id={billGalleryId}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleBillFileChange}
-                className="sr-only"
-              />
-
               <div className="flex gap-3 mb-3">
-                <label
-                  htmlFor={billCameraId}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer"
-                >
-                  <Camera className="w-4 h-4" />Take Photo
-                </label>
-                <label
-                  htmlFor={billGalleryId}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#10B981] text-sm font-medium active:bg-[#1A3A5C] active:scale-95 transition-all select-none cursor-pointer"
-                >
-                  <ImageIcon className="w-4 h-4" />Gallery
-                </label>
+                <FileInputButton
+                  onChange={handleBillInputChange}
+                  capture
+                  icon={Camera}
+                  label="Take Photo"
+                  colorClass="text-[#10B981]"
+                />
+                <FileInputButton
+                  onChange={handleBillInputChange}
+                  acceptMultiple
+                  icon={ImageIcon}
+                  label="Gallery"
+                  colorClass="text-[#10B981]"
+                />
               </div>
 
               {errors.billPhoto && <p className="text-xs text-red-400 mb-2">{errors.billPhoto}</p>}
@@ -643,7 +663,7 @@ export default function AddItemScreen() {
                     <div key={index} className="relative animate-scale-in" style={{ animationDelay: `${index * 50}ms` }}>
                       <img src={photo} alt={`Bill ${index + 1}`}
                         className="w-20 h-20 rounded-xl object-cover border-2 border-[#10B981]/40 bg-[#111D2E]"
-                        onError={() => addToast(`Bill photo ${index + 1} failed to display`, 'error')}
+                        onError={() => addToast(`Bill photo ${index + 1} display error`, 'error')}
                       />
                       <button onClick={() => removeBillPhoto(index)}
                         className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
