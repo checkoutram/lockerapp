@@ -160,8 +160,15 @@ export default function AuthScreen() {
     navigate('setup');
   }, [navigate]);
 
-  // REMOVED: Auto-trigger biometric - only triggers when user taps fingerprint button
-  // This fixes the logout issue where biometric auto-logs user back in
+  // Auto-trigger biometric after 1.5s delay, but NOT after logout
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (biometricEnabled && !justLoggedOutRef.current && !isLocked && !submittingRef.current) {
+        handleBiometric();
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [biometricEnabled, isLocked, handleBiometric]);
 
   useEffect(() => {
     return () => {
