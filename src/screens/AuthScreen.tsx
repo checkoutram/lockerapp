@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Fingerprint, AlertTriangle, RotateCcw, Shield } from 'lucide-react';
+import { NativeBiometric } from '@capgo/capacitor-native-biometric';
+import { Capacitor } from '@capacitor/core';
 import { useApp } from '@/context/AppContext';
 import { SecureStore, AsyncStorage, getSettings, clearAllData } from '@/utils/storage';
 import { digestStringAsync } from '@/utils/crypto';
@@ -141,12 +143,47 @@ export default function AuthScreen() {
 
   const handleBiometric = useCallback(async () => {
     if (submittingRef.current) return;
-    submittingRef.current = true;
-    setTimeout(() => {
+
+    // Web preview: biometric not available without native hardware
+    if (!Capacitor.isNativePlatform()) {
+      setError('Biometric login requires the mobile app. Use your PIN.');
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      return;
+    }
+
+    try {
+      // Check if biometrics are available on this device
+      const result = await NativeBiometric.isAvailable();
+      if (!result.isAvailable) {
+        setError('No biometric hardware found on this device. Use your PIN.');
+        return;
+      }
+
+      submittingRef.current = true;
+      setError('');
+
+      // Actually verify fingerprint/face
+      await NativeBiometric.verifyIdentity({
+        reason: 'Authenticate to access your locker',
+        title: 'vlocker Biometric Login',
+        subtitle: 'Verify your identity',
+        description: 'Use your fingerprint or face to unlock',
+      });
+
+      // Only login if verifyIdentity succeeds (doesn't throw)
       setAuthenticated(true);
       navigate('home');
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('cancel') || msg.includes('dismiss') || msg.includes('user')) {
+        setError('Biometric authentication cancelled.');
+      } else {
+        setError('Biometric authentication failed. Use your PIN.');
+      }
+    } finally {
       submittingRef.current = false;
-    }, 800);
+    }
   }, [setAuthenticated, navigate]);
 
   const handleWipeData = useCallback(async () => {
@@ -158,6 +195,7 @@ export default function AuthScreen() {
 
   // Auto-trigger biometric after 1.5s delay, but NOT after logout
   useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return; // No auto-prompt on web
     const timer = setTimeout(() => {
       if (biometricEnabled && !justLoggedOutRef.current && !isLocked && !submittingRef.current) {
         handleBiometric();
@@ -232,7 +270,7 @@ export default function AuthScreen() {
                 className="w-full aspect-square rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-xl font-semibold text-white active:bg-[#1A3A5C] active:scale-95 transition-all flex items-center justify-center"
               >{num}</button>
             ))}
-            {biometricEnabled ? (
+            {biometricEnabled && Capacitor.isNativePlatform() ? (
               <button onClick={handleBiometric}
                 className="w-full aspect-square rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] active:bg-[#1A3A5C] active:scale-95 transition-all flex items-center justify-center"
               >
