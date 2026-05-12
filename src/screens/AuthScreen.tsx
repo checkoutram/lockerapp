@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Fingerprint, AlertTriangle, RotateCcw, Shield } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { SecureStore, AsyncStorage } from '@/utils/storage';
+import { SecureStore, AsyncStorage, getSettings, clearAllData } from '@/utils/storage';
 import { digestStringAsync } from '@/utils/crypto';
 import { APP_NAME } from '@/types';
 
@@ -24,8 +24,8 @@ export default function AuthScreen() {
   const AUTO_SUBMIT_DELAY = 600;
 
   useEffect(() => {
-    AsyncStorage.getItem('biometric').then((val) => {
-      setBiometricEnabled(val === 'true');
+    getSettings().then((settings) => {
+      setBiometricEnabled(!!settings.biometric);
     });
     AsyncStorage.getItem('just_logged_out').then((val) => {
       if (val === 'true') {
@@ -151,9 +151,7 @@ export default function AuthScreen() {
 
   const handleWipeData = useCallback(async () => {
     await SecureStore.deleteItemAsync('pin');
-    await AsyncStorage.removeItem('biometric');
-    await AsyncStorage.removeItem('items');
-    await AsyncStorage.removeItem('lockout_end');
+    await clearAllData();
     setShowForgotDialog(false);
     navigate('setup');
   }, [navigate]);

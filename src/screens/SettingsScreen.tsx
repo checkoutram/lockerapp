@@ -8,8 +8,8 @@ import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { useApp } from '@/context/AppContext';
 import {
-  getSettings, saveSettings, exportData, deleteAllItems,
-  SecureStore, AsyncStorage,
+  getSettings, saveSettings, exportData, clearAllData,
+  SecureStore,
 } from '@/utils/storage';
 import { APP_NAME } from '@/types';
 
@@ -121,9 +121,8 @@ export default function SettingsScreen() {
   };
 
   const handleWipe = async () => {
-    await deleteAllItems();
     await SecureStore.deleteItemAsync('pin');
-    await AsyncStorage.removeItem('biometric');
+    await clearAllData();
     addToast('All data wiped');
     setShowWipeConfirm(false);
     setTimeout(() => navigate('setup'), 800);
