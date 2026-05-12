@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Lock, Plus, Settings, ImageIcon, Trash2, Eye, Scale, Receipt, CheckCircle2, AlertCircle, Shield } from 'lucide-react';
+import { Lock, Plus, Settings, ImageIcon, Trash2, Eye, Scale, Receipt, CheckCircle2, AlertCircle, Shield, ArchiveX } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { getItems, deleteItem } from '@/utils/storage';
 import PhotoImage from '@/components/PhotoImage';
@@ -29,6 +29,9 @@ export default function HomeScreen() {
     setItems(data);
     setLoaded(true);
   }, []);
+
+  const inLockerItems = items.filter((i) => i.inLocker !== false);
+  const outOfLockerItems = items.filter((i) => i.inLocker === false);
 
   useEffect(() => {
     loadItems();
@@ -93,7 +96,10 @@ export default function HomeScreen() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-[#8A94A6] uppercase tracking-wider">Items in Locker</p>
-            <p className="text-3xl font-bold text-white mt-1" style={{ fontFamily: "'Playfair Display', serif" }}>{items.length}</p>
+            <p className="text-3xl font-bold text-white mt-1" style={{ fontFamily: "'Playfair Display', serif" }}>{inLockerItems.length}</p>
+            {outOfLockerItems.length > 0 && (
+              <p className="text-[10px] text-amber-400/70 mt-1">{outOfLockerItems.length} out of locker</p>
+            )}
           </div>
           <div className="w-14 h-14 rounded-2xl bg-[#C9A84C]/10 flex items-center justify-center overflow-hidden">
             <img src="/vlocker-icon.png" alt={APP_NAME} className="w-12 h-12 object-contain" />
@@ -136,6 +142,8 @@ export default function HomeScreen() {
                 ? `${item.weightAmount} ${item.weightUnit}`
                 : '';
 
+              const isOut = item.inLocker === false;
+
               return (
                 <div key={item.id}
                   onClick={() => navigate('itemDetail', item.id)}
@@ -147,7 +155,7 @@ export default function HomeScreen() {
                     }, 600);
                     (e.currentTarget as HTMLElement).addEventListener('touchend', () => clearTimeout(timer), { once: true });
                   }}
-                  className="rounded-2xl card-vault overflow-hidden active:scale-[0.98] transition-transform cursor-pointer animate-slide-in"
+                  className={`rounded-2xl card-vault overflow-hidden active:scale-[0.98] transition-transform cursor-pointer animate-slide-in ${isOut ? 'opacity-60' : ''}`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   {/* Photo */}
@@ -168,6 +176,14 @@ export default function HomeScreen() {
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <ImageIcon className="w-8 h-8 text-[#8A94A6]/30" />
+                      </div>
+                    )}
+                    {/* Out of Locker Badge */}
+                    {isOut && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        <div className="bg-amber-500/90 text-[#0A1628] text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                          <ArchiveX className="w-3 h-3" /> Out of Locker
+                        </div>
                       </div>
                     )}
                   </div>

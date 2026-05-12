@@ -12,6 +12,7 @@ export interface LockerItem {
   dateAdded: string;
   photos: string[];
   billPhotos: string[];
+  inLocker: boolean;
 }
 
 export type ScreenName =

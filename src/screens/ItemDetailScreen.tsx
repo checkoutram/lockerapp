@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, CheckCircle2, AlertCircle, Shield } from 'lucide-react';
+import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, CheckCircle2, AlertCircle, Shield, Archive, ArchiveX } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { useApp } from '@/context/AppContext';
 import { getItems, deleteItem, updateItem } from '@/utils/storage';
@@ -39,6 +39,7 @@ export default function ItemDetailScreen() {
   const [editDate, setEditDate] = useState('');
   const [editPhotos, setEditPhotos] = useState<string[]>([]);
   const [editBillPhotos, setEditBillPhotos] = useState<string[]>([]);
+  const [editInLocker, setEditInLocker] = useState(true);
 
   const addToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     const id = Date.now() + Math.random();
@@ -71,6 +72,7 @@ export default function ItemDetailScreen() {
     setEditDate(new Date(item.dateAdded).toISOString().split('T')[0]);
     setEditPhotos([...item.photos]);
     setEditBillPhotos([...item.billPhotos]);
+    setEditInLocker(item.inLocker !== false);
     setIsEditing(true);
     setSaveError('');
   };
@@ -211,6 +213,7 @@ export default function ItemDetailScreen() {
       weightUnit: editWeightUnit,
       pieceCount: editPieceCount,
       dateAdded: new Date(editDate).toISOString(),
+      inLocker: editInLocker,
     };
 
     const result = await updateItem(updated);
@@ -521,6 +524,22 @@ export default function ItemDetailScreen() {
               )}
             </div>
 
+            {/* Edit In/Out Toggle */}
+            <button
+              onClick={() => setEditInLocker((v) => !v)}
+              className={`w-full py-3 rounded-2xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98] border mt-4 ${
+                editInLocker
+                  ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
+                  : 'bg-amber-500/5 border-amber-500/20 text-amber-400'
+              }`}
+            >
+              {editInLocker ? <Archive className="w-4 h-4" /> : <ArchiveX className="w-4 h-4" />}
+              {editInLocker ? 'In Locker' : 'Out of Locker'}
+              <span className={`ml-1 w-7 h-4 rounded-full relative ${editInLocker ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${editInLocker ? 'left-3.5' : 'left-0.5'}`} />
+              </span>
+            </button>
+
             {/* Save Button */}
             <button onClick={saveEdit} disabled={isSaving}
               className={`w-full py-4 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98] mt-4 ${
@@ -584,9 +603,33 @@ export default function ItemDetailScreen() {
               </div>
             )}
 
+            {/* In/Out of Locker Quick Toggle */}
+            <button
+              onClick={async () => {
+                if (!item) return;
+                const updated = { ...item, inLocker: !item.inLocker };
+                const result = await updateItem(updated);
+                if (result.success) {
+                  setItem(updated);
+                  addToast(updated.inLocker ? 'Item marked as In Locker' : 'Item marked as Out of Locker', 'success');
+                }
+              }}
+              className={`w-full mt-3 py-3 rounded-2xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98] border ${
+                item.inLocker !== false
+                  ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
+                  : 'bg-amber-500/5 border-amber-500/20 text-amber-400'
+              }`}
+            >
+              {item.inLocker !== false ? <Archive className="w-4 h-4" /> : <ArchiveX className="w-4 h-4" />}
+              {item.inLocker !== false ? 'In Locker' : 'Out of Locker'}
+              <span className={`ml-1 w-7 h-4 rounded-full relative ${item.inLocker !== false ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${item.inLocker !== false ? 'left-3.5' : 'left-0.5'}`} />
+              </span>
+            </button>
+
             {/* Edit Button */}
             <button onClick={startEdit}
-              className="w-full py-3.5 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium flex items-center justify-center gap-2 active:bg-[#1A3A5C] active:scale-[0.98] transition-all"
+              className="w-full mt-3 py-3.5 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] text-sm font-medium flex items-center justify-center gap-2 active:bg-[#1A3A5C] active:scale-[0.98] transition-all"
             >
               <Pencil className="w-4 h-4" />Edit Item
             </button>

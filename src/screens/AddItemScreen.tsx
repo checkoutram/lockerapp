@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Shield } from 'lucide-react';
+import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Archive, ArchiveX } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { useApp } from '@/context/AppContext';
 import { saveItem } from '@/utils/storage';
@@ -47,6 +47,7 @@ export default function AddItemScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isPickingPhoto, setIsPickingPhoto] = useState(false);
+  const [inLocker, setInLocker] = useState(true);
 
   const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const newId = Date.now() + Math.random();
@@ -265,6 +266,7 @@ export default function AddItemScreen() {
       dateAdded: new Date(date).toISOString(),
       photos,
       billPhotos,
+      inLocker,
     };
 
     addToast(`Saving ${photos.length} photos...`, 'info');
@@ -601,10 +603,22 @@ export default function AddItemScreen() {
         </div>
       </div>
 
-      {/* Privacy Note */}
-      <div className="absolute bottom-[88px] left-0 right-0 flex items-center justify-center gap-1.5 text-[10px] text-emerald-400/70 bg-emerald-500/5 px-4 py-1.5 border-t border-emerald-500/10 z-10">
-        <Shield className="w-3 h-3 flex-shrink-0" />
-        <span>All data stays on your device - completely private &amp; secure</span>
+      {/* In Locker / Out of Locker Toggle */}
+      <div className="absolute bottom-[88px] left-0 right-0 z-10">
+        <button
+          onClick={() => setInLocker((v) => !v)}
+          className={`w-full flex items-center justify-center gap-2 py-2.5 text-xs font-medium border-t transition-all ${
+            inLocker
+              ? 'text-emerald-400 bg-emerald-500/5 border-emerald-500/10'
+              : 'text-amber-400 bg-amber-500/5 border-amber-500/10'
+          }`}
+        >
+          {inLocker ? <Archive className="w-3.5 h-3.5" /> : <ArchiveX className="w-3.5 h-3.5" />}
+          <span>{inLocker ? 'In Locker' : 'Out of Locker'}</span>
+          <span className={`ml-1 w-8 h-4.5 rounded-full relative transition-all ${inLocker ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+            <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-all ${inLocker ? 'left-4' : 'left-0.5'}`} />
+          </span>
+        </button>
       </div>
 
       {/* Save Error */}

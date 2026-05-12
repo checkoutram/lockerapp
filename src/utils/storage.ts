@@ -89,9 +89,13 @@ export async function getItems(): Promise<LockerItem[]> {
     if (!value) return [];
     const items: LockerItem[] = JSON.parse(value);
     // Filter out items with missing required fields
-    return items.filter(
-      (item) => item && typeof item === 'object' && item.id && item.name && item.category
-    );
+    // Migrate: default inLocker to true for existing items
+    return items
+      .filter((item) => item && typeof item === 'object' && item.id && item.name && item.category)
+      .map((item) => ({
+        ...item,
+        inLocker: item.inLocker !== false,
+      }));
   } catch {
     return [];
   }
