@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Lock, Plus, Settings, ImageIcon, Trash2, Eye, Scale, Receipt, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Lock, Plus, Settings, ImageIcon, Trash2, Eye, Scale, Receipt, CheckCircle2, AlertCircle, Shield } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { getItems, deleteItem } from '@/utils/storage';
 import PhotoImage from '@/components/PhotoImage';
@@ -70,13 +70,16 @@ export default function HomeScreen() {
       </div>
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-6 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-[#C9A84C]/15 flex items-center justify-center">
-            <Lock className="w-4 h-4 text-[#C9A84C]" />
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl overflow-hidden border border-[#C9A84C]/30">
+            <img src="/vlocker-icon.png" alt={APP_NAME} className="w-full h-full object-contain" />
           </div>
-          <span className="text-base font-bold text-[#C9A84C]" style={{ fontFamily: "'Playfair Display', serif" }}>
-            {APP_NAME}
-          </span>
+          <div>
+            <span className="text-base font-bold text-[#C9A84C] block" style={{ fontFamily: "'Playfair Display', serif" }}>
+              {APP_NAME}
+            </span>
+            <span className="text-[9px] text-[#C9A84C]/50 tracking-wide">Know What Your Locker Holds.</span>
+          </div>
         </div>
         <button onClick={() => navigate('settings')} aria-label="Settings"
           className="w-10 h-10 rounded-xl bg-[#111D2E] border border-[#1A3A5C] flex items-center justify-center active:scale-95 transition-transform"
@@ -92,8 +95,8 @@ export default function HomeScreen() {
             <p className="text-xs text-[#8A94A6] uppercase tracking-wider">Items in Locker</p>
             <p className="text-3xl font-bold text-white mt-1" style={{ fontFamily: "'Playfair Display', serif" }}>{items.length}</p>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-[#C9A84C]/10 flex items-center justify-center">
-            <Lock className="w-7 h-7 text-[#C9A84C]" />
+          <div className="w-14 h-14 rounded-2xl bg-[#C9A84C]/10 flex items-center justify-center overflow-hidden">
+            <img src="/vlocker-icon.png" alt={APP_NAME} className="w-12 h-12 object-contain" />
           </div>
         </div>
       </div>
@@ -246,6 +249,12 @@ export default function HomeScreen() {
           </div>
         </div>
       )}
+
+      {/* Privacy Note */}
+      <div className="shrink-0 flex items-center justify-center gap-1.5 text-[10px] text-emerald-400/70 bg-emerald-500/5 px-4 py-2 border-t border-emerald-500/10">
+        <Shield className="w-3 h-3 flex-shrink-0" />
+        <span>Your data stays on your device - completely private &amp; secure</span>
+      </div>
     </div>
   );
 }

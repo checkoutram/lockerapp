@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   ChevronLeft, KeyRound, Fingerprint, HardDrive,
   Download, AlertTriangle, ChevronRight, Check, Eye, EyeOff, LogOut,
-  CheckCircle2,
+  CheckCircle2, Shield,
 } from 'lucide-react';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -155,9 +155,12 @@ export default function SettingsScreen() {
         <button onClick={goBack} className="p-2 -ml-2 rounded-full active:bg-white/5">
           <ChevronLeft className="w-5 h-5 text-[#8A94A6]" />
         </button>
-        <h1 className="flex-1 text-center text-lg font-bold text-white pr-8" style={{ fontFamily: "'Playfair Display', serif" }}>
-          Settings
-        </h1>
+        <div className="flex-1 flex flex-col items-center pr-8">
+          <h1 className="text-lg font-bold text-white" style={{ fontFamily: "'Playfair Display', serif" }}>
+            Settings
+          </h1>
+          <span className="text-[9px] text-[#C9A84C]/50 tracking-wide">Know What Your Locker Holds.</span>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 pb-8">
@@ -247,9 +250,23 @@ export default function SettingsScreen() {
           </div>
         </div>
 
+        {/* App Icon + Tagline */}
+        <div className="flex flex-col items-center pt-4 border-t border-[#1A3A5C] gap-2">
+          <div className="w-12 h-12 rounded-xl overflow-hidden border border-[#C9A84C]/20">
+            <img src="/vlocker-icon.png" alt={APP_NAME} className="w-full h-full object-contain" />
+          </div>
+          <p className="text-[10px] text-[#C9A84C]/50 tracking-wide">Know What Your Locker Holds.</p>
+        </div>
+
+        {/* Privacy Note */}
+        <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-400/70 bg-emerald-500/5 px-3 py-2 rounded-xl border border-emerald-500/10 mt-3">
+          <Shield className="w-3 h-3 flex-shrink-0" />
+          <span>All data resides on your mobile - completely safe &amp; private</span>
+        </div>
+
         {/* Version */}
-        <div className="text-center pt-4 border-t border-[#1A3A5C]">
-          <p className="text-xs text-[#8A94A6]">{APP_NAME} v2.2</p>
+        <div className="text-center pt-2 pb-2">
+          <p className="text-xs text-[#8A94A6]">{APP_NAME} v2.2.2</p>
         </div>
       </div>
 

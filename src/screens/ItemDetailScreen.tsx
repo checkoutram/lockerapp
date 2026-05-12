@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, CheckCircle2, AlertCircle, Shield } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { useApp } from '@/context/AppContext';
 import { getItems, deleteItem, updateItem } from '@/utils/storage';
@@ -275,9 +275,14 @@ export default function ItemDetailScreen() {
         <button onClick={goBack} className="p-2 -ml-2 rounded-full active:bg-white/5">
           <ChevronLeft className="w-5 h-5 text-[#8A94A6]" />
         </button>
-        <h1 className="flex-1 text-center text-lg font-bold text-white pr-8 truncate" style={{ fontFamily: "'Playfair Display', serif" }}>
-          {isEditing ? 'Edit Item' : item.name}
-        </h1>
+        <div className="flex-1 flex flex-col items-center pr-8 min-w-0">
+          <h1 className="text-lg font-bold text-white truncate w-full text-center" style={{ fontFamily: "'Playfair Display', serif" }}>
+            {isEditing ? 'Edit Item' : item.name}
+          </h1>
+          {!isEditing && (
+            <span className="text-[9px] text-[#C9A84C]/50 tracking-wide">Know What Your Locker Holds.</span>
+          )}
+        </div>
         {isEditing ? (
           <button onClick={cancelEdit} className="p-2 -mr-2 rounded-full active:bg-white/5">
             <X className="w-5 h-5 text-[#8A94A6]" />
@@ -610,6 +615,12 @@ export default function ItemDetailScreen() {
           </div>
         </div>
       )}
+
+      {/* Privacy Note */}
+      <div className="shrink-0 flex items-center justify-center gap-1.5 text-[10px] text-emerald-400/70 bg-emerald-500/5 px-4 py-2 border-t border-emerald-500/10">
+        <Shield className="w-3 h-3 flex-shrink-0" />
+        <span>Your data stays on your device - completely private &amp; secure</span>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Lock, Fingerprint, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Fingerprint, AlertTriangle, RotateCcw, Shield } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { SecureStore, AsyncStorage } from '@/utils/storage';
 import { digestStringAsync } from '@/utils/crypto';
@@ -19,7 +19,6 @@ export default function AuthScreen() {
   const submittingRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Flag to prevent auto-biometric after logout
   const justLoggedOutRef = useRef(false);
 
   const AUTO_SUBMIT_DELAY = 600;
@@ -28,7 +27,6 @@ export default function AuthScreen() {
     AsyncStorage.getItem('biometric').then((val) => {
       setBiometricEnabled(val === 'true');
     });
-    // Check if we just logged out - if so, don't auto-trigger biometric
     AsyncStorage.getItem('just_logged_out').then((val) => {
       if (val === 'true') {
         justLoggedOutRef.current = true;
@@ -182,7 +180,9 @@ export default function AuthScreen() {
     <div className="h-full flex flex-col vault-gradient">
       <div className="flex items-center justify-center pt-8 pb-4">
         <div className="flex items-center gap-2">
-          <Lock className="w-4 h-4 text-[#C9A84C]" />
+          <div className="w-7 h-7 rounded-lg overflow-hidden">
+            <img src="/vlocker-icon.png" alt={APP_NAME} className="w-full h-full object-contain" />
+          </div>
           <span className="text-sm text-[#C9A84C] font-medium" style={{ fontFamily: "'Playfair Display', serif" }}>
             {APP_NAME}
           </span>
@@ -190,9 +190,13 @@ export default function AuthScreen() {
       </div>
 
       <div className="flex-1 flex flex-col items-center px-8">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#C9A84C]/20 to-[#C9A84C]/5 border border-[#C9A84C]/30 flex items-center justify-center mb-6">
-          <Lock className="w-8 h-8 text-[#C9A84C]" strokeWidth={1.5} />
+        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#C9A84C]/20 to-[#C9A84C]/5 border border-[#C9A84C]/30 flex items-center justify-center mb-4 gold-border-glow overflow-hidden">
+          <img src="/vlocker-icon.png" alt={APP_NAME} className="w-16 h-16 object-contain" />
         </div>
+
+        <p className="text-xs text-[#C9A84C]/60 mb-1 tracking-wide font-medium">
+          Know What Your Locker Holds.
+        </p>
 
         <h2 className="text-xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
           Enter PIN
@@ -260,6 +264,12 @@ export default function AuthScreen() {
             Forgot PIN?
           </button>
         )}
+
+        {/* Privacy Note */}
+        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400/80 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 mt-6">
+          <Shield className="w-3 h-3" />
+          <span>Your data stays on your device - completely private &amp; secure</span>
+        </div>
       </div>
 
       {showForgotDialog && (

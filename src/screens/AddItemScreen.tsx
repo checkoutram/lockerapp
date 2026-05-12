@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Shield } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { useApp } from '@/context/AppContext';
 import { saveItem } from '@/utils/storage';
@@ -340,9 +340,12 @@ export default function AddItemScreen() {
         <button onClick={goBack} className="p-2 -ml-2 rounded-full active:bg-white/5">
           <ChevronLeft className="w-5 h-5 text-[#8A94A6]" />
         </button>
-        <h1 className="flex-1 text-center text-lg font-bold text-white pr-8" style={{ fontFamily: "'Playfair Display', serif" }}>
-          Add Item
-        </h1>
+        <div className="flex-1 flex flex-col items-center pr-8">
+          <h1 className="text-lg font-bold text-white" style={{ fontFamily: "'Playfair Display', serif" }}>
+            Add Item
+          </h1>
+          <span className="text-[9px] text-[#C9A84C]/50 tracking-wide">Know What Your Locker Holds.</span>
+        </div>
       </div>
 
       {/* Form */}
@@ -596,6 +599,12 @@ export default function AddItemScreen() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Privacy Note */}
+      <div className="absolute bottom-[88px] left-0 right-0 flex items-center justify-center gap-1.5 text-[10px] text-emerald-400/70 bg-emerald-500/5 px-4 py-1.5 border-t border-emerald-500/10 z-10">
+        <Shield className="w-3 h-3 flex-shrink-0" />
+        <span>All data stays on your device - completely private &amp; secure</span>
       </div>
 
       {/* Save Error */}

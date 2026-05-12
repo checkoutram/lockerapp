@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Lock } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { SecureStore } from '@/utils/storage';
 import { APP_NAME } from '@/types';
@@ -38,10 +38,10 @@ export default function SplashScreen() {
         <div className="absolute w-[320px] h-[320px] rounded-full border border-[#C9A84C]/5" />
       </div>
 
-      {/* Logo */}
+      {/* Logo with App Icon */}
       <div className="relative z-10 flex flex-col items-center animate-fade-in">
-        <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#C9A84C]/20 to-[#C9A84C]/5 border border-[#C9A84C]/30 flex items-center justify-center mb-6 animate-float gold-border-glow">
-          <Lock className="w-12 h-12 text-[#C9A84C]" strokeWidth={1.5} />
+        <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-[#C9A84C]/20 to-[#C9A84C]/5 border border-[#C9A84C]/30 flex items-center justify-center mb-6 animate-float gold-border-glow overflow-hidden">
+          <img src="/vlocker-icon.png" alt={APP_NAME} className="w-24 h-24 object-contain" />
         </div>
 
         <h1
@@ -51,8 +51,8 @@ export default function SplashScreen() {
           {APP_NAME}
         </h1>
 
-        <p className="mt-3 text-sm text-[#8A94A6] tracking-widest uppercase">
-          Your locker, documented.
+        <p className="mt-3 text-sm text-[#C9A84C]/80 tracking-wider font-medium">
+          Know What Your Locker Holds.
         </p>
 
         {/* Loading dots */}
@@ -63,9 +63,13 @@ export default function SplashScreen() {
         </div>
       </div>
 
-      {/* Bottom version */}
-      <div className="absolute bottom-8 text-xs text-[#8A94A6]/50">
-        Secure Local Storage
+      {/* Bottom: Privacy Note */}
+      <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-2 px-6">
+        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400/80 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+          <Shield className="w-3 h-3" />
+          <span>All data stays on your device - completely private &amp; secure</span>
+        </div>
+        <span className="text-[10px] text-[#8A94A6]/40">v2.2.2</span>
       </div>
     </div>
   );
