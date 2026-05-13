@@ -46,87 +46,68 @@ jobs:
           echo "Info.plist configured:"
           cat "$PLIST"
 
-      - name: Install Pillow for icon generation
-        run: pip3 install Pillow
-
       - name: Copy iOS app icon
         run: |
           ICON_SRC="public/vlocker-icon.png"
           ICONSET="ios/App/App/Assets.xcassets/AppIcon.appiconset"
           mkdir -p "$ICONSET"
           
-          # Generate all required iOS icon sizes from the source
-          # iOS app icon sizes
+          # Generate all required iOS icon sizes using native macOS sips
+          # Format: "target_width target_height idiom scale"
           declare -a SIZES=(
-            "20 20 1x notification"
-            "20 20 2x notification"
-            "20 20 3x notification"
-            "29 29 1x settings"
-            "29 29 2x settings"
-            "29 29 3x settings"
-            "40 40 1x spotlight"
-            "40 40 2x spotlight"
-            "40 40 3x spotlight"
-            "60 60 2x iphone"
-            "60 60 3x iphone"
-            "76 76 1x ipad"
-            "76 76 2x ipad"
-            "83.5 83.5 2x ipad"
-            "1024 1024 1x appstore"
+            "20 20 iphone 1x notification"
+            "20 20 iphone 2x notification"
+            "20 20 iphone 3x notification"
+            "29 29 iphone 1x settings"
+            "29 29 iphone 2x settings"
+            "29 29 iphone 3x settings"
+            "40 40 iphone 2x spotlight"
+            "40 40 iphone 3x spotlight"
+            "60 60 iphone 2x app"
+            "60 60 iphone 3x app"
+            "20 20 ipad 1x notification"
+            "20 20 ipad 2x notification"
+            "29 29 ipad 1x settings"
+            "29 29 ipad 2x settings"
+            "40 40 ipad 1x spotlight"
+            "40 40 ipad 2x spotlight"
+            "76 76 ipad 1x app"
+            "76 76 ipad 2x app"
+            "83.5 83.5 ipad 2x pro-app"
+            "1024 1024 ios-marketing 1x marketing"
           )
           
-          python3 << 'PYTHON'
-          from PIL import Image
-          import os
-          import json
+          IMAGES_JSON="["
+          FIRST=true
           
-          src = Image.open("public/vlocker-icon.png")
-          iconset = "ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          for spec in "${SIZES[@]}"; do
+            read -r w h idiom scale label <<< "$spec"
+            # Calculate pixel size
+            if [ "$scale" = "1x" ]; then px="${w%.*}"; else
+              if [ "$scale" = "2x" ]; then
+                px=$(echo "${w%.*} * 2" | bc)
+              else
+                px=$(echo "${w%.*} * 3" | bc)
+              fi
+            fi
+            filename="icon-${w%.*}-${h%.*}@${scale}.png"
+            filepath="$ICONSET/$filename"
+            
+            # Use sips to resize
+            sips -z "$px" "$px" "$ICON_SRC" --out "$filepath" > /dev/null 2>&1
+            echo "Generated ${px}x${px} -> $filename"
+            
+            # Build JSON
+            if [ "$FIRST" = true ]; then FIRST=false; else IMAGES_JSON+=","; fi
+            IMAGES_JSON+="{\"size\":\"${w}x${h}\",\"idiom\":\"$idiom\",\"filename\":\"$filename\",\"scale\":\"$scale\"}"
+          done
           
-          sizes = [
-            (20, 20, "1x", "iphone-notification"),
-            (20, 20, "2x", "iphone-notification"),
-            (20, 20, "3x", "iphone-notification"),
-            (29, 29, "1x", "iphone-settings"),
-            (29, 29, "2x", "iphone-settings"),
-            (29, 29, "3x", "iphone-settings"),
-            (40, 40, "2x", "iphone-spotlight"),
-            (40, 40, "3x", "iphone-spotlight"),
-            (60, 60, "2x", "iphone-app"),
-            (60, 60, "3x", "iphone-app"),
-            (20, 20, "1x", "ipad-notification"),
-            (20, 20, "2x", "ipad-notification"),
-            (29, 29, "1x", "ipad-settings"),
-            (29, 29, "2x", "ipad-settings"),
-            (40, 40, "1x", "ipad-spotlight"),
-            (40, 40, "2x", "ipad-spotlight"),
-            (76, 76, "1x", "ipad-app"),
-            (76, 76, "2x", "ipad-app"),
-            (83.5, 83.5, "2x", "ipad-pro-app"),
-            (1024, 1024, "1x", "ios-marketing"),
-          ]
-          
-          images = []
-          for w, h, scale, idiom in sizes:
-              px_w = int(w * (1 if scale == "1x" else 2 if scale == "2x" else 3))
-              px_h = int(h * (1 if scale == "1x" else 2 if scale == "2x" else 3))
-              icon = src.resize((px_w, px_h), Image.LANCZOS)
-              filename = f"icon-{int(w)}-{int(h)}@{scale}.png"
-              icon.save(os.path.join(iconset, filename), "PNG")
-              images.append({
-                  "size": f"{w}x{h}",
-                  "idiom": idiom.split("-")[0] if "-" in idiom else idiom,
-                  "filename": filename,
-                  "scale": scale
-              })
+          IMAGES_JSON+="]"
           
           # Write Contents.json
-          contents = {"images": images, "info": {"version": 1, "author": "xcode"}}
-          with open(os.path.join(iconset, "Contents.json"), "w") as f:
-              json.dump(contents, f, indent=2)
-          
-          print("iOS icons generated successfully")
-          PYTHON
+          echo "{\"images\":$IMAGES_JSON,\"info\":{\"version\":1,\"author\":\"xcode\"}}" | python3 -m json.tool > "$ICONSET/Contents.json"
+          echo "iOS icons generated successfully"
+          cat "$ICONSET/Contents.json"
 
       - name: Build iOS Simulator App
         run: |
