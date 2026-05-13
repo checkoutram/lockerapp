@@ -11,9 +11,10 @@ interface PhotoImageProps {
   alt: string;
   className?: string;
   onError?: () => void;
+  onClick?: () => void;
 }
 
-export default function PhotoImage({ photoRef, alt, className = '', onError }: PhotoImageProps) {
+export default function PhotoImage({ photoRef, alt, className = '', onError, onClick }: PhotoImageProps) {
   const [src, setSrc] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -84,8 +85,9 @@ export default function PhotoImage({ photoRef, alt, className = '', onError }: P
     <img
       src={src}
       alt={alt}
-      className={className}
+      className={`${className} ${onClick ? 'cursor-pointer' : ''}`}
       loading="lazy"
+      onClick={onClick}
       onError={() => {
         console.error('[PhotoImage] img onError:', photoRef.substring(0, 50));
         setSrc('');

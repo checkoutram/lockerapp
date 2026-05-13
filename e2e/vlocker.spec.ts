@@ -480,3 +480,117 @@ test.describe('vlocker - Edge Cases', () => {
     }
   });
 });
+
+// --- Image Viewer ---
+
+// Small 1x1 red pixel base64 PNG for testing
+const TEST_PHOTO_B64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+async function injectItemWithPhotos(page: Page) {
+  // SHA-256 hash of "1234"
+  const PIN_HASH = '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4';
+  await page.evaluate((data) => {
+    localStorage.setItem('async_has_setup', 'true');
+    localStorage.setItem('async_biometric', 'false');
+    localStorage.setItem('secure_pin', data.pinHash);
+    const items = [{
+      id: 'test-photo-item',
+      name: 'Photo Test Gold',
+      description: 'Item with photos for viewer test',
+      category: 'Gold',
+      subType: 'Chain',
+      subTypeCustom: '',
+      categoryCustom: '',
+      weightAmount: '15',
+      weightUnit: 'g',
+      pieceCount: '',
+      dateAdded: new Date().toISOString(),
+      photos: data.photos,
+      billPhotos: data.billPhotos,
+      inLocker: true,
+    }];
+    localStorage.setItem('vlocker_items', JSON.stringify(items));
+  }, { pinHash: PIN_HASH, photos: [TEST_PHOTO_B64, TEST_PHOTO_B64], billPhotos: [TEST_PHOTO_B64, TEST_PHOTO_B64] });
+  await page.reload();
+  await page.waitForTimeout(800);
+}
+
+test.describe('vlocker - Image Viewer', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    await page.reload();
+    await page.waitForTimeout(500);
+  });
+
+  test('TC-VIEW-01: Click main photo opens full-screen viewer', async ({ page }) => {
+    await injectItemWithPhotos(page);
+    await loginWithPin(page, '1234');
+    await expect(page.getByText('Photo Test Gold')).toBeVisible();
+    await page.getByText('Photo Test Gold').click();
+    await page.waitForTimeout(300);
+    // Click the main carousel photo
+    await page.locator('.aspect-square .cursor-pointer').first().click();
+    await page.waitForTimeout(300);
+    // Full-screen viewer should be visible
+    await expect(page.getByText('Tap anywhere to close')).toBeVisible();
+  });
+
+  test('TC-VIEW-02: Click bill photo opens full-screen viewer', async ({ page }) => {
+    await injectItemWithPhotos(page);
+    await loginWithPin(page, '1234');
+    await page.getByText('Photo Test Gold').click();
+    await page.waitForTimeout(300);
+    // Click the first bill photo thumbnail
+    await page.locator('button', { has: page.locator('[alt="Bill/Certificate 1"]') }).first().click();
+    await page.waitForTimeout(300);
+    // Full-screen viewer should be visible
+    await expect(page.getByText('Tap anywhere to close')).toBeVisible();
+  });
+
+  test('TC-VIEW-03: Close viewer with X button', async ({ page }) => {
+    await injectItemWithPhotos(page);
+    await loginWithPin(page, '1234');
+    await page.locator('p', { hasText: 'Photo Test Gold' }).first().click();
+    await page.waitForTimeout(300);
+    // Open viewer by clicking main photo
+    await page.locator('.aspect-square .cursor-pointer').first().click();
+    await page.waitForTimeout(300);
+    await expect(page.getByText('Tap anywhere to close')).toBeVisible();
+    // Click X button to close
+    await page.locator('button', { has: page.locator('.lucide-x') }).last().click();
+    await page.waitForTimeout(300);
+    // Viewer should be closed, Edit Item button visible (detail screen)
+    await expect(page.getByRole('button', { name: 'Edit Item' })).toBeVisible();
+    await expect(page.getByText('Tap anywhere to close')).not.toBeVisible();
+  });
+
+  test('TC-VIEW-04: Close viewer by tapping background', async ({ page }) => {
+    await injectItemWithPhotos(page);
+    await loginWithPin(page, '1234');
+    await page.locator('p', { hasText: 'Photo Test Gold' }).first().click();
+    await page.waitForTimeout(300);
+    // Open viewer
+    await page.locator('.aspect-square .cursor-pointer').first().click();
+    await page.waitForTimeout(300);
+    await expect(page.getByText('Tap anywhere to close')).toBeVisible();
+    // Tap on the viewer header area to close (avoids the inner image container with stopPropagation)
+    await page.locator('.bg-black\\/95 .border-b').click();
+    await page.waitForTimeout(300);
+    // Viewer should be closed, Edit Item button visible
+    await expect(page.getByRole('button', { name: 'Edit Item' })).toBeVisible();
+    await expect(page.getByText('Tap anywhere to close')).not.toBeVisible();
+  });
+
+  test('TC-VIEW-05: Thumbnail strip opens full-screen viewer', async ({ page }) => {
+    await injectItemWithPhotos(page);
+    await loginWithPin(page, '1234');
+    await page.getByText('Photo Test Gold').click();
+    await page.waitForTimeout(300);
+    // Click on a thumbnail strip image (has border-2 class from thumbnail styling)
+    await page.locator('.border-\\[\\#C9A84C\\] .cursor-pointer').first().click();
+    await page.waitForTimeout(300);
+    // Full-screen viewer should be visible
+    await expect(page.getByText('Tap anywhere to close')).toBeVisible();
+  });
+});

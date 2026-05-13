@@ -25,6 +25,8 @@ export default function ItemDetailScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([]);
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
+  const [viewerAlt, setViewerAlt] = useState('');
 
   // Edit state
   const [editName, setEditName] = useState('');
@@ -305,6 +307,10 @@ export default function ItemDetailScreen() {
               photoRef={item.photos[currentPhotoIndex]}
               alt={item.name}
               className="w-full h-full object-cover"
+              onClick={() => {
+                setViewerImage(item.photos[currentPhotoIndex]);
+                setViewerAlt(item.name);
+              }}
             />
             {item.photos.length > 1 && (
               <>
@@ -340,7 +346,12 @@ export default function ItemDetailScreen() {
               <button key={i} onClick={() => setCurrentPhotoIndex(i)}
                 className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-all ${i === currentPhotoIndex ? 'border-[#C9A84C]' : 'border-transparent'}`}
               >
-                <PhotoImage photoRef={photo} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                <PhotoImage photoRef={photo} alt={`Photo ${i + 1}`} className="w-full h-full object-cover"
+                  onClick={() => {
+                    setViewerImage(photo);
+                    setViewerAlt(`${item.name} photo ${i + 1}`);
+                  }}
+                />
               </button>
             ))}
           </div>
@@ -592,12 +603,18 @@ export default function ItemDetailScreen() {
                 </h3>
                 <div className="flex gap-2 overflow-x-auto pb-2">
                   {item.billPhotos.map((photo, i) => (
-                    <div key={i} className="flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden border-2 border-[#10B981]/40 relative">
+                    <button key={i}
+                      onClick={() => {
+                        setViewerImage(photo);
+                        setViewerAlt(`Bill/Certificate ${i + 1}`);
+                      }}
+                      className="flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden border-2 border-[#10B981]/40 relative active:scale-95 transition-transform"
+                    >
                       <PhotoImage photoRef={photo} alt={`Bill/Certificate ${i + 1}`} className="w-full h-full object-cover" />
                       <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-center py-0.5">
                         <span className="text-[10px] text-white">{i + 1}/{item.billPhotos.length}</span>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -664,6 +681,34 @@ export default function ItemDetailScreen() {
         <Shield className="w-3 h-3 flex-shrink-0" />
         <span>Your data stays on your device - completely private &amp; secure</span>
       </div>
+
+      {/* Full-Screen Image Viewer */}
+      {viewerImage && (
+        <div
+          className="absolute inset-0 bg-black/95 z-[60] flex flex-col animate-fade-in"
+          onClick={() => setViewerImage(null)}
+        >
+          {/* Viewer Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <span className="text-sm text-[#8A94A6] truncate flex-1 mr-4">{viewerAlt}</span>
+            <button
+              onClick={() => setViewerImage(null)}
+              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center active:bg-white/20 transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+          </div>
+          {/* Viewer Image */}
+          <div className="flex-1 flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+            <PhotoImage
+              photoRef={viewerImage}
+              alt={viewerAlt}
+              className="max-w-full max-h-full object-contain rounded-xl"
+            />
+          </div>
+          <div className="text-center pb-4 text-[11px] text-[#8A94A6]/50">Tap anywhere to close</div>
+        </div>
+      )}
     </div>
   );
 }
