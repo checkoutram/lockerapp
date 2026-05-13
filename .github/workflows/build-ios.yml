@@ -46,6 +46,9 @@ jobs:
           echo "Info.plist configured:"
           cat "$PLIST"
 
+      - name: Install Pillow for icon generation
+        run: pip3 install Pillow
+
       - name: Copy iOS app icon
         run: |
           ICON_SRC="public/vlocker-icon.png"
