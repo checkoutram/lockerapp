@@ -1,0 +1,254 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-ios-simulator:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build webapp
+        run: npm run build
+
+      - name: Add iOS platform
+        run: npx cap add ios
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Configure iOS Info.plist permissions
+        run: |
+          PLIST="ios/App/App/Info.plist"
+          # Add NSCameraUsageDescription
+          plutil -insert NSCameraUsageDescription -string "vlocker needs camera access to take photos of your locker items and bills." "$PLIST" || \
+            plutil -replace NSCameraUsageDescription -string "vlocker needs camera access to take photos of your locker items and bills." "$PLIST"
+          # Add NSPhotoLibraryUsageDescription
+          plutil -insert NSPhotoLibraryUsageDescription -string "vlocker needs photo library access to select images for your locker items." "$PLIST" || \
+            plutil -replace NSPhotoLibraryUsageDescription -string "vlocker needs photo library access to select images for your locker items." "$PLIST"
+          # Add NSFaceIDUsageDescription for biometric auth
+          plutil -insert NSFaceIDUsageDescription -string "vlocker uses Face ID / Touch ID to securely unlock your locker." "$PLIST" || \
+            plutil -replace NSFaceIDUsageDescription -string "vlocker uses Face ID / Touch ID to securely unlock your locker." "$PLIST"
+          # Add UILaunchStoryboardName
+          plutil -replace UILaunchStoryboardName -string "LaunchScreen" "$PLIST"
+          echo "Info.plist configured:"
+          cat "$PLIST"
+
+      - name: Copy iOS app icon
+        run: |
+          ICON_SRC="public/vlocker-icon.png"
+          ICONSET="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          mkdir -p "$ICONSET"
+          
+          # Generate all required iOS icon sizes from the source
+          # iOS app icon sizes
+          declare -a SIZES=(
+            "20 20 1x notification"
+            "20 20 2x notification"
+            "20 20 3x notification"
+            "29 29 1x settings"
+            "29 29 2x settings"
+            "29 29 3x settings"
+            "40 40 1x spotlight"
+            "40 40 2x spotlight"
+            "40 40 3x spotlight"
+            "60 60 2x iphone"
+            "60 60 3x iphone"
+            "76 76 1x ipad"
+            "76 76 2x ipad"
+            "83.5 83.5 2x ipad"
+            "1024 1024 1x appstore"
+          )
+          
+          python3 << 'PYTHON'
+          from PIL import Image
+          import os
+          import json
+          
+          src = Image.open("public/vlocker-icon.png")
+          iconset = "ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          
+          sizes = [
+            (20, 20, "1x", "iphone-notification"),
+            (20, 20, "2x", "iphone-notification"),
+            (20, 20, "3x", "iphone-notification"),
+            (29, 29, "1x", "iphone-settings"),
+            (29, 29, "2x", "iphone-settings"),
+            (29, 29, "3x", "iphone-settings"),
+            (40, 40, "2x", "iphone-spotlight"),
+            (40, 40, "3x", "iphone-spotlight"),
+            (60, 60, "2x", "iphone-app"),
+            (60, 60, "3x", "iphone-app"),
+            (20, 20, "1x", "ipad-notification"),
+            (20, 20, "2x", "ipad-notification"),
+            (29, 29, "1x", "ipad-settings"),
+            (29, 29, "2x", "ipad-settings"),
+            (40, 40, "1x", "ipad-spotlight"),
+            (40, 40, "2x", "ipad-spotlight"),
+            (76, 76, "1x", "ipad-app"),
+            (76, 76, "2x", "ipad-app"),
+            (83.5, 83.5, "2x", "ipad-pro-app"),
+            (1024, 1024, "1x", "ios-marketing"),
+          ]
+          
+          images = []
+          for w, h, scale, idiom in sizes:
+              px_w = int(w * (1 if scale == "1x" else 2 if scale == "2x" else 3))
+              px_h = int(h * (1 if scale == "1x" else 2 if scale == "2x" else 3))
+              icon = src.resize((px_w, px_h), Image.LANCZOS)
+              filename = f"icon-{int(w)}-{int(h)}@{scale}.png"
+              icon.save(os.path.join(iconset, filename), "PNG")
+              images.append({
+                  "size": f"{w}x{h}",
+                  "idiom": idiom.split("-")[0] if "-" in idiom else idiom,
+                  "filename": filename,
+                  "scale": scale
+              })
+          
+          # Write Contents.json
+          contents = {"images": images, "info": {"version": 1, "author": "xcode"}}
+          with open(os.path.join(iconset, "Contents.json"), "w") as f:
+              json.dump(contents, f, indent=2)
+          
+          print("iOS icons generated successfully")
+          PYTHON
+
+      - name: Build iOS Simulator App
+        run: |
+          cd ios/App
+          # Build for iOS Simulator (no signing required)
+          xcodebuild build \
+            -scheme App \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty --color
+
+      - name: Package Simulator App
+        run: |
+          APP_PATH=$(find ios/App/build -name "App.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            # Try DerivedData path
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "App.app" -type d | head -1)
+          fi
+          echo "App path: $APP_PATH"
+          if [ -n "$APP_PATH" ]; then
+            mkdir -p ios-output
+            cp -R "$APP_PATH" ios-output/vlocker.app
+            # Create a zip for easier distribution
+            cd ios-output
+            zip -r vlocker-ios-simulator.zip vlocker.app
+            echo "Simulator app packaged successfully"
+          else
+            echo "App not found"
+            exit 1
+          fi
+
+      - name: Upload iOS Simulator App
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlocker-ios-simulator
+          path: ios-output/vlocker-ios-simulator.zip
+
+  # Build for physical device distribution (requires signing secrets)
+  build-ios-device:
+    runs-on: macos-latest
+    if: github.event.inputs.distribution == 'true' || contains(github.event.head_commit.message, '[ios-dist]')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build webapp
+        run: npm run build
+
+      - name: Add iOS platform
+        run: npx cap add ios
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Setup Apple Signing
+        if: env.IOS_CERTIFICATE_BASE64 != ''
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        run: |
+          # Decode certificate
+          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > ios-cert.p12
+          # Decode provisioning profile
+          echo "$IOS_PROVISION_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+          # Install certificate
+          security create-keychain -p "temp123" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "temp123" build.keychain
+          security import ios-cert.p12 -k build.keychain -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp123" build.keychain
+          # Install provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          UUID=$(grep -a -A1 'UUID' profile.mobileprovision | grep string | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+
+      - name: Build iOS Device IPA
+        run: |
+          cd ios/App
+          xcodebuild archive \
+            -scheme App \
+            -configuration Release \
+            -archivePath build/vlocker.xcarchive \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER='' \
+            | xcpretty --color || true
+          
+          # Export IPA
+          cat > exportOptions.plist << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>development</string>
+            <key>teamID</key>
+            <string></string>
+            <key>signingStyle</key>
+            <string>manual</string>
+          </dict>
+          </plist>
+          PLIST
+          
+          xcodebuild -exportArchive \
+            -archivePath build/vlocker.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist exportOptions.plist \
+            | xcpretty --color || true
+
+      - name: Upload iOS IPA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlocker-ios-device
+          path: ios/App/build/ipa/*.ipa
+          if-no-files-found: ignore
