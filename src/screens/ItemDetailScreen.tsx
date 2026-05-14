@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, CheckCircle2, AlertCircle, Shield, Archive, ArchiveX } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 import { useApp } from '@/context/AppContext';
 import { getItems, deleteItem, updateItem } from '@/utils/storage';
 import PhotoImage from '@/components/PhotoImage';
@@ -84,6 +85,25 @@ export default function ItemDetailScreen() {
     setSaveError('');
   };
 
+  // Helper: read photo file and convert to data URL
+  const readPhotoFile = async (path: string): Promise<string | null> => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { Filesystem } = await import('@capacitor/filesystem');
+        const result = await Filesystem.readFile({ path, directory: undefined });
+        if (typeof result.data === 'string') {
+          const mime = path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+          return `data:${mime};base64,${result.data}`;
+        }
+        return null;
+      }
+      return path;
+    } catch (err: any) {
+      console.error('[readPhotoFile] Error:', err);
+      return null;
+    }
+  };
+
   // Native Capacitor Camera for edit mode
   const takeEditPhoto = async (isBill: boolean) => {
     const maxCount = isBill ? 3 : 5;
@@ -91,17 +111,18 @@ export default function ItemDetailScreen() {
     if (current >= maxCount) { setSaveError(`Maximum ${maxCount} photos`); return; }
 
     try {
+      // Use Uri to bypass native OK/Retry preview
       const image = await CapCamera.getPhoto({
         quality: 75,
         allowEditing: false,
-        resultType: CameraResultType.Base64,
+        resultType: CameraResultType.Uri,
         source: CameraSource.Camera,
         width: 1200,
         height: 1200,
       });
-      if (!image.base64String) { setSaveError('No image data'); return; }
-      const mimeType = image.format === 'png' ? 'image/png' : 'image/jpeg';
-      const dataUrl = `data:${mimeType};base64,${image.base64String}`;
+      if (!image.path) { setSaveError('No image data'); return; }
+      const dataUrl = await readPhotoFile(image.path);
+      if (!dataUrl) { setSaveError('Failed to read photo'); return; }
       if (isBill) setEditBillPhotos((prev) => [...prev, dataUrl]);
       else setEditPhotos((prev) => [...prev, dataUrl]);
     } catch (err: any) {
@@ -120,14 +141,14 @@ export default function ItemDetailScreen() {
       const image = await CapCamera.getPhoto({
         quality: 75,
         allowEditing: false,
-        resultType: CameraResultType.Base64,
+        resultType: CameraResultType.Uri,
         source: CameraSource.Photos,
         width: 1200,
         height: 1200,
       });
-      if (!image.base64String) { setSaveError('No image data'); return; }
-      const mimeType = image.format === 'png' ? 'image/png' : 'image/jpeg';
-      const dataUrl = `data:${mimeType};base64,${image.base64String}`;
+      if (!image.path) { setSaveError('No image data'); return; }
+      const dataUrl = await readPhotoFile(image.path);
+      if (!dataUrl) { setSaveError('Failed to read photo'); return; }
       if (isBill) setEditBillPhotos((prev) => [...prev, dataUrl]);
       else setEditPhotos((prev) => [...prev, dataUrl]);
     } catch (err: any) {
@@ -495,13 +516,18 @@ export default function ItemDetailScreen() {
               {editPhotos.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {editPhotos.map((photo, i) => (
-                    <div key={i} className="relative">
-                      <PhotoImage photoRef={photo} alt={`Photo ${i + 1}`} className="w-20 h-20 rounded-xl object-cover border-2 border-[#C9A84C]/30 bg-[#111D2E]" />
-                      <button onClick={() => handleRemoveEditPhoto(i)}
-                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
+                    <button key={i}
+                      onClick={() => { setViewerImage(photo); setViewerAlt(`Photo ${i + 1}`); }}
+                      className="relative active:scale-95 transition-transform"
+                    >
+                      <PhotoImage photoRef={photo} alt={`Photo ${i + 1}`} className="w-20 h-20 rounded-xl object-cover border-2 border-[#C9A84C]/30 bg-[#111D2E] cursor-pointer" />
+                      <span
+                        onClick={(e) => { e.stopPropagation(); handleRemoveEditPhoto(i); }}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center z-10"
+                      >
                         <X className="w-3 h-3 text-white" />
-                      </button>
-                    </div>
+                      </span>
+                    </button>
                   ))}
                 </div>
               )}
@@ -523,13 +549,18 @@ export default function ItemDetailScreen() {
               {editBillPhotos.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {editBillPhotos.map((photo, i) => (
-                    <div key={i} className="relative">
-                      <PhotoImage photoRef={photo} alt={`Bill ${i + 1}`} className="w-20 h-20 rounded-xl object-cover border-2 border-[#10B981]/30 bg-[#111D2E]" />
-                      <button onClick={() => handleRemoveEditBillPhoto(i)}
-                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
+                    <button key={i}
+                      onClick={() => { setViewerImage(photo); setViewerAlt(`Bill/Certificate ${i + 1}`); }}
+                      className="relative active:scale-95 transition-transform"
+                    >
+                      <PhotoImage photoRef={photo} alt={`Bill ${i + 1}`} className="w-20 h-20 rounded-xl object-cover border-2 border-[#10B981]/30 bg-[#111D2E] cursor-pointer" />
+                      <span
+                        onClick={(e) => { e.stopPropagation(); handleRemoveEditBillPhoto(i); }}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center z-10"
+                      >
                         <X className="w-3 h-3 text-white" />
-                      </button>
-                    </div>
+                      </span>
+                    </button>
                   ))}
                 </div>
               )}

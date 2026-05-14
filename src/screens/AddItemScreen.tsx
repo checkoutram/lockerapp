@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Archive, ArchiveX } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 import { useApp } from '@/context/AppContext';
 import { saveItem } from '@/utils/storage';
 import { generateUUID } from '@/utils/crypto';
@@ -117,6 +118,27 @@ export default function AddItemScreen() {
     return Object.keys(errs).length === 0;
   };
 
+  // Helper: read photo file and convert to data URL
+  const readPhotoFile = async (path: string): Promise<string | null> => {
+    try {
+      // On native platforms, read the temp file from the URI
+      if (Capacitor.isNativePlatform()) {
+        const { Filesystem } = await import('@capacitor/filesystem');
+        const result = await Filesystem.readFile({ path, directory: undefined });
+        if (typeof result.data === 'string') {
+          const mime = path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+          return `data:${mime};base64,${result.data}`;
+        }
+        return null;
+      }
+      // On web, path is already a data URL
+      return path;
+    } catch (err: any) {
+      console.error('[readPhotoFile] Error reading file:', err);
+      return null;
+    }
+  };
+
   // ===== NATIVE CAPACITOR CAMERA - TAKE PHOTO =====
   const takePhoto = async (isBill: boolean) => {
     const prefix = isBill ? 'Bill' : 'Photo';
@@ -129,40 +151,47 @@ export default function AddItemScreen() {
     }
 
     setIsPickingPhoto(true);
-    addToast(`${prefix}: Opening camera...`, 'info');
 
     try {
+      // Use Uri resultType — bypasses native OK/Retry preview screen
+      // Camera saves directly to a temp file and returns the path
       const image = await CapCamera.getPhoto({
         quality: 75,
         allowEditing: false,
-        resultType: CameraResultType.Base64,
+        resultType: CameraResultType.Uri,
         source: CameraSource.Camera,
         width: 1200,
         height: 1200,
       });
 
-      if (!image.base64String) {
-        addToast(`${prefix}: No image data returned`, 'error');
+      if (!image.path) {
+        addToast(`${prefix}: No image path returned`, 'error');
         setIsPickingPhoto(false);
         return;
       }
 
-      const mimeType = image.format === 'png' ? 'image/png' : 'image/jpeg';
-      const dataUrl = `data:${mimeType};base64,${image.base64String}`;
+      // Read the temp file and convert to data URL
+      const dataUrl = await readPhotoFile(image.path);
+      if (!dataUrl) {
+        addToast(`${prefix}: Failed to read photo file`, 'error');
+        setIsPickingPhoto(false);
+        return;
+      }
 
       if (isBill) {
         setBillPhotos((prev) => [...prev, dataUrl]);
       } else {
         setPhotos((prev) => [...prev, dataUrl]);
       }
-      addToast(`${prefix} saved (${(image.base64String.length * 0.75 / 1024).toFixed(0)}KB)`, 'success');
+      const sizeKb = Math.round((dataUrl.length * 0.75) / 1024);
+      addToast(`${prefix} saved (${sizeKb}KB)`, 'success');
 
     } catch (err: any) {
       const msg = err?.message || 'Camera failed';
       if (msg.includes('cancel') || msg.includes('dismiss')) {
         addToast(`${prefix}: Cancelled`, 'info');
       } else if (msg.includes('permission') || msg.includes('Permission')) {
-        addToast(`${prefix}: Camera permission denied. Go to Settings > Apps > vlocker > Permissions > Camera > Allow`, 'error');
+        addToast(`${prefix}: Camera permission denied. Check Settings > Apps > vlocker > Permissions`, 'error');
       } else {
         addToast(`${prefix}: ${msg}`, 'error');
       }
@@ -183,44 +212,40 @@ export default function AddItemScreen() {
     }
 
     setIsPickingPhoto(true);
-    addToast(`${prefix}: Opening gallery...`, 'info');
 
     try {
-      // On Android, we need to pick one at a time since Capacitor Camera
-      // doesn't support multiple selection from gallery in a single call
-      const slotsLeft = maxCount - currentCount;
+      // Pick a single image from gallery — one tap = one image
+      // User taps Gallery again if they want more
+      const image = await CapCamera.getPhoto({
+        quality: 75,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Photos,
+        width: 1200,
+        height: 1200,
+      });
 
-      for (let i = 0; i < slotsLeft; i++) {
-        const image = await CapCamera.getPhoto({
-          quality: 75,
-          allowEditing: false,
-          resultType: CameraResultType.Base64,
-          source: CameraSource.Photos,
-          width: 1200,
-          height: 1200,
-        });
-
-        if (!image.base64String) {
-          addToast(`${prefix}: No image data`, 'error');
-          break;
-        }
-
-        const mimeType = image.format === 'png' ? 'image/png' : 'image/jpeg';
-        const dataUrl = `data:${mimeType};base64,${image.base64String}`;
-
-        if (isBill) {
-          setBillPhotos((prev) => [...prev, dataUrl]);
-        } else {
-          setPhotos((prev) => [...prev, dataUrl]);
-        }
-        addToast(`${prefix} ${i + 1} saved (${(image.base64String.length * 0.75 / 1024).toFixed(0)}KB)`, 'success');
-
-        // Ask if they want to pick more
-        if (i < slotsLeft - 1) {
-          // Small delay to let the toast show
-          await new Promise((r) => setTimeout(r, 300));
-        }
+      if (!image.path) {
+        addToast(`${prefix}: No image path returned`, 'error');
+        setIsPickingPhoto(false);
+        return;
       }
+
+      // Read the temp file and convert to data URL
+      const dataUrl = await readPhotoFile(image.path);
+      if (!dataUrl) {
+        addToast(`${prefix}: Failed to read photo file`, 'error');
+        setIsPickingPhoto(false);
+        return;
+      }
+
+      if (isBill) {
+        setBillPhotos((prev) => [...prev, dataUrl]);
+      } else {
+        setPhotos((prev) => [...prev, dataUrl]);
+      }
+      const sizeKb = Math.round((dataUrl.length * 0.75) / 1024);
+      addToast(`${prefix} saved (${sizeKb}KB)`, 'success');
 
     } catch (err: any) {
       const msg = err?.message || 'Gallery failed';
@@ -601,29 +626,32 @@ export default function AddItemScreen() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* In Locker / Out of Locker Toggle */}
-      <div className="absolute bottom-[88px] left-0 right-0 z-10">
-        <button
-          onClick={() => setInLocker((v) => !v)}
-          className={`w-full flex items-center justify-center gap-2 py-2.5 text-xs font-medium border-t transition-all ${
-            inLocker
-              ? 'text-emerald-400 bg-emerald-500/5 border-emerald-500/10'
-              : 'text-amber-400 bg-amber-500/5 border-amber-500/10'
-          }`}
-        >
-          {inLocker ? <Archive className="w-3.5 h-3.5" /> : <ArchiveX className="w-3.5 h-3.5" />}
-          <span>{inLocker ? 'In Locker' : 'Out of Locker'}</span>
-          <span className={`ml-1 w-8 h-4.5 rounded-full relative transition-all ${inLocker ? 'bg-emerald-500' : 'bg-amber-500'}`}>
-            <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-all ${inLocker ? 'left-4' : 'left-0.5'}`} />
-          </span>
-        </button>
+        {/* In Locker / Out of Locker Toggle - now inside scrollable area */}
+        <div className="mb-6 mt-2">
+          <button
+            onClick={() => setInLocker((v) => !v)}
+            className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-medium border transition-all active:scale-[0.98] ${
+              inLocker
+                ? 'text-emerald-400 bg-emerald-500/5 border-emerald-500/20'
+                : 'text-amber-400 bg-amber-500/5 border-amber-500/20'
+            }`}
+          >
+            {inLocker ? <Archive className="w-4 h-4" /> : <ArchiveX className="w-4 h-4" />}
+            <span>{inLocker ? 'In Locker' : 'Out of Locker'}</span>
+            <span className={`ml-1.5 w-9 h-5 rounded-full relative transition-all flex-shrink-0 ${inLocker ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow-sm ${inLocker ? 'left-[18px]' : 'left-0.5'}`} />
+            </span>
+          </button>
+        </div>
+
+        {/* Bottom spacer for save button */}
+        <div className="h-4" />
       </div>
 
       {/* Save Error */}
       {saveError && (
-        <div className="absolute bottom-20 left-0 right-0 px-5 z-20">
+        <div className="shrink-0 px-5 pb-3">
           <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span>{saveError}</span>
@@ -632,7 +660,7 @@ export default function AddItemScreen() {
       )}
 
       {/* Save Button */}
-      <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-[#0A1628] via-[#0A1628] to-transparent z-10">
+      <div className="shrink-0 p-5 bg-gradient-to-t from-[#0A1628] via-[#0A1628] to-transparent z-10">
         <button onClick={handleSave} disabled={!isValid || isSaving}
           className={`w-full py-4 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98] ${
             isValid && !isSaving
