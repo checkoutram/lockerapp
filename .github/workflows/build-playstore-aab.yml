@@ -1,0 +1,66 @@
+name: Build Signed AAB for Play Store
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build webapp
+        run: npm run build
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Decode signing keystore
+        run: echo "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" | base64 -d > android/app/vlocker-release.keystore
+
+      - name: Configure signing and version
+        run: |
+          cd android/app
+          sed -i 's/versionCode 1/versionCode 2/' build.gradle
+          sed -i 's/versionName "1.0"/versionName "2.5.1"/' build.gradle
+          cat >> build.gradle << 'EOF'
+
+          android.signingConfigs {
+              release {
+                  storeFile file("vlocker-release.keystore")
+                  storePassword "vlocker2024"
+                  keyAlias "vlocker"
+                  keyPassword "vlocker2024"
+              }
+          }
+          android.buildTypes.release.signingConfig = android.signingConfigs.release
+          EOF
+
+      - name: Build Release AAB
+        run: |
+          cd android
+          bash gradlew bundleRelease --no-daemon
+
+      - name: Upload Signed AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlocker-playstore-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
