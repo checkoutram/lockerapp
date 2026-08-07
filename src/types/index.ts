@@ -15,6 +15,15 @@ export interface LockerItem {
   inLocker: boolean;
 }
 
+export interface SecretQuestions {
+  question1: string;
+  answer1: string;   // SHA-256 hashed
+  question2: string;
+  answer2: string;   // SHA-256 hashed
+  question3: string;
+  answer3: string;   // SHA-256 hashed
+}
+
 export type ScreenName =
   | 'splash'
   | 'setup'
@@ -115,3 +124,17 @@ export const PIECE_COUNT_SUBTYPES = [
 ];
 
 export const APP_NAME = 'vlocker';
+
+// Pre-defined secret questions for PIN recovery
+export const SECRET_QUESTIONS = [
+  'What is your mother\'s maiden name?',
+  'What was the name of your first school?',
+  'What was the name of your first pet?',
+  'What is your favorite childhood movie?',
+  'What city were you born in?',
+  'What was your childhood nickname?',
+  'What is the name of your favorite teacher?',
+  'What was the model of your first phone?',
+  'What is your favorite book?',
+  'What was the name of your childhood best friend?',
+];

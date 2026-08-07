@@ -6,7 +6,7 @@
 
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
-import type { LockerItem } from '@/types';
+import type { LockerItem, SecretQuestions } from '@/types';
 import { savePhoto, deletePhoto } from './photoStorage';
 
 // Check if running on native platform
@@ -256,7 +256,27 @@ async function canStoreItem(_item: LockerItem): Promise<{ canStore: boolean; rea
   }
 }
 
-// ---- EXPORT ----
+// ---- SECRET QUESTIONS ----
+const SECRET_Q_KEY = 'vlocker_secret_questions';
+
+export async function saveSecretQuestions(questions: SecretQuestions): Promise<void> {
+  await Prefs.set(SECRET_Q_KEY, JSON.stringify(questions));
+}
+
+export async function getSecretQuestions(): Promise<SecretQuestions | null> {
+  try {
+    const { value } = await Prefs.get(SECRET_Q_KEY);
+    if (!value) return null;
+    return JSON.parse(value) as SecretQuestions;
+  } catch {
+    return null;
+  }
+}
+
+export async function hasSecretQuestions(): Promise<boolean> {
+  const { value } = await Prefs.get(SECRET_Q_KEY);
+  return !!value;
+}
 export async function exportData(): Promise<string> {
   const items = await getItems();
   return JSON.stringify(items, null, 2);
@@ -280,6 +300,7 @@ export async function clearAllData(): Promise<void> {
   await deleteAllItems();
   await Prefs.remove('vlocker_settings');
   await Prefs.remove('vlocker_session');
+  await Prefs.remove(SECRET_Q_KEY);
 }
 
 // ---- SESSION ----
