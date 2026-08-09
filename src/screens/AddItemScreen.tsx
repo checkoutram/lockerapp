@@ -313,10 +313,6 @@ export default function AddItemScreen() {
     pieceCount ? `${pieceCount} pcs` : '',
   ].filter(Boolean).join(' \u00B7 ');
 
-  const isValid = name.trim().length > 0 && category !== '' &&
-    !(category === 'Other' && !categoryCustom.trim()) &&
-    !((isJewelCategory(category) || category === 'Documents') && !subType);
-
   // Photo button component
   const PhotoButton = ({
     onClick,
@@ -661,9 +657,9 @@ export default function AddItemScreen() {
 
       {/* Save Button */}
       <div className="shrink-0 p-5 bg-gradient-to-t from-[#0A1628] via-[#0A1628] to-transparent z-10">
-        <button onClick={handleSave} disabled={!isValid || isSaving}
+        <button onClick={handleSave} disabled={isSaving}
           className={`w-full py-4 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98] ${
-            isValid && !isSaving
+            !isSaving
               ? 'bg-[#C9A84C] text-[#0A1628] shadow-lg shadow-[#C9A84C]/20'
               : 'bg-[#111D2E] text-[#8A94A6] border border-[#1A3A5C]'
           }`}

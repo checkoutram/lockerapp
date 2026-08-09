@@ -213,10 +213,7 @@ export default function AuthScreen() {
     setError('');
     const sq = await getSecretQuestions();
     if (sq) {
-      const sq = await getSecretQuestions();
-      if (sq) {
-        setSavedQuestions({ q1: sq.question1, q2: sq.question2, q3: sq.question3 });
-      }
+      setSavedQuestions({ q1: sq.question1, q2: sq.question2, q3: sq.question3 });
       setForgotStep('verifyQuestions');
     } else {
       // Legacy: no secret questions set, show data wipe warning
@@ -504,7 +501,9 @@ export default function AuthScreen() {
                   {idx + 1}. {idx === 0 ? savedQuestions.q1 : idx === 1 ? savedQuestions.q2 : savedQuestions.q3}
                 </p>
                 <input
-                  type="text"
+                  type="password"
+                  autoComplete="off"
+                  autoCorrect="off"
                   value={verifyAnswers[idx]}
                   onChange={(e) => {
                     const newAnswers = [...verifyAnswers];

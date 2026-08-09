@@ -48,7 +48,7 @@ async function setupPin(page: Page, pin: string = '1234') {
     await page.getByRole('button', { name: SECRET_QUESTIONS[i], exact: false }).first().click();
     await page.waitForTimeout(300);
     // Fill answer
-    await page.locator('input[type="text"]').nth(i).fill(`answer${i + 1}`);
+    await page.locator('input[type="password"]').nth(i).fill(`answer${i + 1}`);
   }
 
   // Click Save
@@ -79,7 +79,7 @@ async function setupPinWithCustomAnswers(page: Page, pin: string, answers: strin
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: SECRET_QUESTIONS[i], exact: false }).first().click();
     await page.waitForTimeout(300);
-    await page.locator('input[type="text"]').nth(i).fill(answers[i]);
+    await page.locator('input[type="password"]').nth(i).fill(answers[i]);
   }
 
   await page.getByRole('button', { name: /Save & Secure/ }).click();
@@ -262,9 +262,9 @@ test.describe('vlocker - Forgot PIN', () => {
     await page.waitForTimeout(300);
 
     // Fill correct answers
-    await page.locator('input[type="text"]').nth(0).fill('school1');
-    await page.locator('input[type="text"]').nth(1).fill('pet2');
-    await page.locator('input[type="text"]').nth(2).fill('movie3');
+    await page.locator('input[type="password"]').nth(0).fill('school1');
+    await page.locator('input[type="password"]').nth(1).fill('pet2');
+    await page.locator('input[type="password"]').nth(2).fill('movie3');
     await page.getByRole('button', { name: 'Verify' }).click();
     await page.waitForTimeout(500);
 
@@ -296,9 +296,9 @@ test.describe('vlocker - Forgot PIN', () => {
     await page.waitForTimeout(300);
 
     // Fill wrong answers
-    await page.locator('input[type="text"]').nth(0).fill('wrong1');
-    await page.locator('input[type="text"]').nth(1).fill('wrong2');
-    await page.locator('input[type="text"]').nth(2).fill('wrong3');
+    await page.locator('input[type="password"]').nth(0).fill('wrong1');
+    await page.locator('input[type="password"]').nth(1).fill('wrong2');
+    await page.locator('input[type="password"]').nth(2).fill('wrong3');
     await page.getByRole('button', { name: 'Verify' }).click();
     await page.waitForTimeout(500);
 
@@ -362,9 +362,9 @@ test.describe('vlocker - Forgot PIN', () => {
     await page.waitForTimeout(300);
 
     // Fill lowercase versions - should still work (case-insensitive)
-    await page.locator('input[type="text"]').nth(0).fill('school1');
-    await page.locator('input[type="text"]').nth(1).fill('pet2');
-    await page.locator('input[type="text"]').nth(2).fill('movie3');
+    await page.locator('input[type="password"]').nth(0).fill('school1');
+    await page.locator('input[type="password"]').nth(1).fill('pet2');
+    await page.locator('input[type="password"]').nth(2).fill('movie3');
     await page.getByRole('button', { name: 'Verify' }).click();
     await page.waitForTimeout(500);
 
@@ -500,7 +500,7 @@ test.describe('vlocker - Add Items', () => {
     await page.getByRole('button', { name: 'Gold' }).click();
     await page.getByRole('button', { name: /Save to/ }).click();
     await page.waitForTimeout(500);
-    await expect(page.getByText(/required/)).toBeVisible();
+    await expect(page.getByText('Item name is required')).toBeVisible();
   });
 
   test('TC-ADD-08: Validation - category required', async ({ page }) => {
@@ -509,7 +509,7 @@ test.describe('vlocker - Add Items', () => {
     await page.locator('input[placeholder*="Gold Chain"]').fill('Test Item');
     await page.getByRole('button', { name: /Save to/ }).click();
     await page.waitForTimeout(500);
-    await expect(page.getByText(/required/)).toBeVisible();
+    await expect(page.getByText('Category is required')).toBeVisible();
   });
 
   test('TC-ADD-09: Validation - subType required for jewellery', async ({ page }) => {
@@ -519,7 +519,7 @@ test.describe('vlocker - Add Items', () => {
     await page.getByRole('button', { name: 'Gold' }).click();
     await page.getByRole('button', { name: /Save to/ }).click();
     await page.waitForTimeout(500);
-    await expect(page.getByText(/required/)).toBeVisible();
+    await expect(page.getByText('Item type is required')).toBeVisible();
   });
 });
 
@@ -574,11 +574,13 @@ test.describe('vlocker - Edit Items', () => {
   });
 
   test('TC-EDIT-05: Delete confirmation dialog', async ({ page }) => {
-    await page.getByText('Test Gold Ring').click();
+    // Right-click on item to open context menu, then click Delete
+    await page.getByText('Test Gold Ring').click({ button: 'right' });
     await page.waitForTimeout(300);
-    await page.locator('header').locator('button').last().click();
+    await page.getByText('Delete').click();
     await page.waitForTimeout(500);
-    await expect(page.getByText('Test Gold Ring')).toBeVisible();
+    await expect(page.getByText('Delete Item')).toBeVisible();
+    await expect(page.locator('p', { hasText: /Remove.*from/ }).getByText('Test Gold Ring')).toBeVisible();
   });
 
   test('TC-EDIT-06: Change to Chain subtype', async ({ page }) => {

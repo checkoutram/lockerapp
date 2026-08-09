@@ -150,9 +150,9 @@ export default function SetupScreen() {
     setShowDropdown(null);
   };
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking/tapping outside
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (showDropdown !== null) {
         const ref = dropdownRefs.current[showDropdown];
         if (ref && !ref.contains(e.target as Node)) {
@@ -161,7 +161,11 @@ export default function SetupScreen() {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [showDropdown]);
 
   const keypadNumbers = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -267,7 +271,9 @@ export default function SetupScreen() {
                   )}
                 </div>
                 <input
-                  type="text"
+                  type="password"
+                  autoComplete="off"
+                  autoCorrect="off"
                   value={answers[idx]}
                   onChange={(e) => handleAnswerChange(idx, e.target.value)}
                   placeholder={`Answer for question ${idx + 1}`}
