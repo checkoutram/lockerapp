@@ -241,7 +241,7 @@ export default function SetupScreen() {
                     onClick={() => setShowDropdown(showDropdown === idx ? null : idx)}
                     className="w-full flex items-center justify-between p-3 rounded-xl bg-[#111D2E] border border-[#1A3A5C] text-sm text-white text-left active:border-[#C9A84C]/50 transition-colors"
                   >
-                    <span className="truncate pr-2">{SECRET_QUESTIONS[selectedQuestions[idx]]}</span>
+                    <span className="pr-2 leading-snug">{SECRET_QUESTIONS[selectedQuestions[idx]]}</span>
                     <ChevronDown className={`w-4 h-4 text-[#8A94A6] flex-shrink-0 transition-transform ${showDropdown === idx ? 'rotate-180' : ''}`} />
                   </button>
                   {showDropdown === idx && (
@@ -254,12 +254,12 @@ export default function SetupScreen() {
                             key={qIdx}
                             onClick={() => !isUsed && handleQuestionSelect(idx, qIdx)}
                             disabled={isUsed}
-                            className={`w-full flex items-center justify-between p-3 text-left text-sm transition-colors ${
+                            className={`w-full flex items-start justify-between p-3 text-left text-sm transition-colors ${
                               isSelected ? 'bg-[#C9A84C]/20 text-[#C9A84C]' : isUsed ? 'text-[#8A94A6]/40 cursor-not-allowed' : 'text-white hover:bg-[#1A3A5C]'
                             }`}
                           >
-                            <span className="truncate pr-2">{q}</span>
-                            {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
+                            <span className="pr-2 leading-snug">{q}</span>
+                            {isSelected && <Check className="w-4 h-4 flex-shrink-0 mt-0.5" />}
                           </button>
                         );
                       })}

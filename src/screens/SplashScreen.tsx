@@ -69,7 +69,7 @@ export default function SplashScreen() {
           <Shield className="w-3 h-3" />
           <span>All data stays on your device - completely private &amp; secure</span>
         </div>
-        <span className="text-[10px] text-[#8A94A6]/40">v2.5.2</span>
+        <span className="text-[10px] text-[#8A94A6]/40">v2.5.3</span>
       </div>
     </div>
   );
