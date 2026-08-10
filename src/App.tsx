@@ -1,12 +1,15 @@
 import { useEffect } from 'react';
 import { AppProvider, useApp } from '@/context/AppContext';
+import { X, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import SplashScreen from '@/screens/SplashScreen';
 import SetupScreen from '@/screens/SetupScreen';
 import AuthScreen from '@/screens/AuthScreen';
-import HomeScreen from '@/screens/HomeScreen';
+import LockerListScreen from '@/screens/LockerListScreen';
+import LockerDetailScreen from '@/screens/LockerDetailScreen';
 import AddItemScreen from '@/screens/AddItemScreen';
 import ItemDetailScreen from '@/screens/ItemDetailScreen';
 import SettingsScreen from '@/screens/SettingsScreen';
+import ManageLockersScreen from '@/screens/ManageLockersScreen';
 
 function ScreenRouter() {
   const { screen } = useApp();
@@ -19,19 +22,24 @@ function ScreenRouter() {
     case 'auth':
       return <AuthScreen />;
     case 'home':
-      return <HomeScreen />;
+      return <LockerListScreen />;
+    case 'lockerList':
+      return <LockerListScreen />;
+    case 'lockerDetail':
+      return <LockerDetailScreen />;
     case 'addItem':
       return <AddItemScreen />;
     case 'itemDetail':
       return <ItemDetailScreen />;
     case 'settings':
       return <SettingsScreen />;
+    case 'manageLockers':
+      return <ManageLockersScreen />;
     default:
       return <SplashScreen />;
   }
 }
 
-// App state monitoring (simulates AppState API for auto-lock)
 function AppStateMonitor() {
   const { isAuthenticated, setAuthenticated, navigate, screen } = useApp();
 
@@ -43,7 +51,6 @@ function AppStateMonitor() {
         hiddenTime = Date.now();
       } else if (hiddenTime && isAuthenticated) {
         const awayTime = Date.now() - hiddenTime;
-        // Lock if away for more than 30 minutes (1800000ms)
         if (awayTime > 1800000 && screen !== 'auth' && screen !== 'setup' && screen !== 'splash') {
           setAuthenticated(false);
           navigate('auth');
@@ -59,10 +66,41 @@ function AppStateMonitor() {
   return null;
 }
 
+function AlertsOverlay() {
+  const { alerts, dismissAlert } = useApp();
+  if (alerts.length === 0) return null;
+
+  return (
+    <div className="fixed top-4 left-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+      {alerts.map((alert) => (
+        <div
+          key={alert.id}
+          className={`pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium animate-in slide-in-from-top fade-in duration-300 ${
+            alert.type === 'success'
+              ? 'bg-emerald-500/90 text-white'
+              : alert.type === 'error'
+              ? 'bg-red-500/90 text-white'
+              : 'bg-[#1A3A5C]/90 text-white border border-[#C9A84C]/30'
+          }`}
+        >
+          {alert.type === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+          {alert.type === 'error' && <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+          {alert.type === 'info' && <Info className="w-4 h-4 flex-shrink-0" />}
+          <span className="flex-1">{alert.message}</span>
+          <button onClick={() => dismissAlert(alert.id)} className="p-1 hover:bg-white/20 rounded-lg">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AppContent() {
   return (
     <>
       <AppStateMonitor />
+      <AlertsOverlay />
       <ScreenRouter />
     </>
   );
@@ -72,7 +110,6 @@ export default function App() {
   return (
     <AppProvider>
       <div className="min-h-screen w-full bg-[#050A12] flex items-center justify-center p-0 md:p-4">
-        {/* Mobile frame container */}
         <div className="w-full max-w-[430px] h-[100dvh] md:h-[850px] bg-[#0A1628] md:rounded-[40px] overflow-hidden shadow-2xl shadow-black/50 relative isolate border border-[#1A3A5C]/30 md:border-[#1A3A5C]/50">
           <AppContent />
         </div>

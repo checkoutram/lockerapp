@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, CheckCircle2, AlertCircle, Shield, Archive, ArchiveX } from 'lucide-react';
+import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, CheckCircle2, AlertCircle, Shield, Archive, ArchiveX, Building2, ChevronDown } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { useApp } from '@/context/AppContext';
@@ -18,7 +18,7 @@ function isJewelCategory(c: string): boolean {
 }
 
 export default function ItemDetailScreen() {
-  const { goBack, selectedItemId } = useApp();
+  const { goBack, selectedItemId, lockers } = useApp();
   const [item, setItem] = useState<LockerItem | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -43,6 +43,8 @@ export default function ItemDetailScreen() {
   const [editPhotos, setEditPhotos] = useState<string[]>([]);
   const [editBillPhotos, setEditBillPhotos] = useState<string[]>([]);
   const [editInLocker, setEditInLocker] = useState(true);
+  const [editLockerId, setEditLockerId] = useState('default');
+  const [showLockerDropdown, setShowLockerDropdown] = useState(false);
 
   const addToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     const id = Date.now() + Math.random();
@@ -76,12 +78,14 @@ export default function ItemDetailScreen() {
     setEditPhotos([...item.photos]);
     setEditBillPhotos([...item.billPhotos]);
     setEditInLocker(item.inLocker !== false);
+    setEditLockerId(item.lockerId || 'default');
     setIsEditing(true);
     setSaveError('');
   };
 
   const cancelEdit = () => {
     setIsEditing(false);
+    setShowLockerDropdown(false);
     setSaveError('');
   };
 
@@ -237,6 +241,7 @@ export default function ItemDetailScreen() {
       pieceCount: editPieceCount,
       dateAdded: new Date(editDate).toISOString(),
       inLocker: editInLocker,
+      lockerId: editLockerId,
     };
 
     const result = await updateItem(updated);
@@ -263,7 +268,7 @@ export default function ItemDetailScreen() {
     return (
       <div className="h-full flex flex-col bg-[#0A1628]">
         <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1A3A5C]/50">
-          <button onClick={goBack} className="p-2 -ml-2 rounded-full active:bg-white/5">
+          <button onClick={goBack} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
             <ChevronLeft className="w-5 h-5 text-[#8A94A6]" />
           </button>
         </div>
@@ -298,7 +303,7 @@ export default function ItemDetailScreen() {
 
       {/* Header */}
       <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1A3A5C]/50">
-        <button onClick={goBack} className="p-2 -ml-2 rounded-full active:bg-white/5">
+        <button onClick={goBack} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
           <ChevronLeft className="w-5 h-5 text-[#8A94A6]" />
         </button>
         <div className="flex-1 flex flex-col items-center pr-8 min-w-0">
@@ -393,6 +398,37 @@ export default function ItemDetailScreen() {
               <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
                 className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white text-sm focus:border-[#C9A84C]/50 transition-colors"
               />
+            </div>
+
+            {/* Edit Locker */}
+            <div>
+              <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">Locker</label>
+              <div className="relative">
+                <button
+                  onClick={() => setShowLockerDropdown(!showLockerDropdown)}
+                  className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white text-sm text-left flex items-center justify-between focus:border-[#C9A84C]/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-[#C9A84C]" />
+                    <span>{lockers.find(l => l.id === editLockerId)?.name || 'Select Locker'}</span>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-[#8A94A6] transition-transform ${showLockerDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                {showLockerDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#111D2E] border border-[#1A3A5C] rounded-xl z-50 overflow-hidden max-h-60 overflow-y-auto">
+                    {lockers.map((locker) => (
+                      <button
+                        key={locker.id}
+                        onClick={() => { setEditLockerId(locker.id); setShowLockerDropdown(false); }}
+                        className={`w-full px-4 py-3 text-left text-sm flex items-center gap-2 hover:bg-[#1A3A5C] transition-colors ${editLockerId === locker.id ? 'bg-[#1A3A5C] text-[#C9A84C]' : 'text-white'}`}
+                      >
+                        <Building2 className="w-4 h-4" />
+                        {locker.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Edit Category Level 1 */}
@@ -594,7 +630,7 @@ export default function ItemDetailScreen() {
         ) : (
           <div className="px-5 pt-4">
             {/* Category Badge */}
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
               <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: `${color}20`, color }}>
                 {item.category}
               </span>
@@ -608,6 +644,14 @@ export default function ItemDetailScreen() {
                   <Scale className="w-3 h-3" />{item.weightAmount} {item.weightUnit}
                 </span>
               )}
+              {(() => {
+                const locker = lockers.find(l => l.id === item.lockerId);
+                return locker ? (
+                  <span className="px-3 py-1 rounded-full text-xs bg-[#0B3B5C]/40 text-[#C9A84C] flex items-center gap-1">
+                    <Building2 className="w-3 h-3" />{locker.name}
+                  </span>
+                ) : null;
+              })()}
             </div>
 
             {/* Name */}

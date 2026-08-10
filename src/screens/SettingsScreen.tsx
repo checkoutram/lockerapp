@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   ChevronLeft, KeyRound, Fingerprint, HardDrive,
   Download, AlertTriangle, ChevronRight, Check, Eye, EyeOff, LogOut,
-  CheckCircle2, Shield,
+  CheckCircle2, Shield, Building2,
 } from 'lucide-react';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -151,7 +151,7 @@ export default function SettingsScreen() {
 
       {/* Header */}
       <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1A3A5C]/50">
-        <button onClick={goBack} className="p-2 -ml-2 rounded-full active:bg-white/5">
+        <button onClick={goBack} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
           <ChevronLeft className="w-5 h-5 text-[#8A94A6]" />
         </button>
         <div className="flex-1 flex flex-col items-center pr-8">
@@ -201,6 +201,23 @@ export default function SettingsScreen() {
             <div className="flex-1 text-left">
               <p className="text-sm font-medium text-white">Log Out</p>
               <p className="text-xs text-[#8A94A6]">End session and return to login</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-[#8A94A6]" />
+          </button>
+        </div>
+
+        {/* Lockers */}
+        <div className="mb-6">
+          <h3 className="text-xs text-[#8A94A6] uppercase tracking-wider mb-3 px-1">Lockers</h3>
+          <button onClick={() => navigate('manageLockers')}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl card-vault mb-3 active:scale-[0.98] transition-transform"
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#C9A84C]/15 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-[#C9A84C]" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-medium text-white">Manage Lockers</p>
+              <p className="text-xs text-[#8A94A6]">Add, edit, rename lockers</p>
             </div>
             <ChevronRight className="w-4 h-4 text-[#8A94A6]" />
           </button>

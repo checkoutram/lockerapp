@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Archive, ArchiveX } from 'lucide-react';
+import { ChevronLeft, Camera, ImageIcon, X, Calendar, Receipt, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Archive, ArchiveX, Building2 } from 'lucide-react';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { useApp } from '@/context/AppContext';
@@ -29,7 +29,9 @@ function isJewelCategory(c: string): boolean {
 type Toast = { id: number; message: string; type: 'success' | 'error' | 'info' };
 
 export default function AddItemScreen() {
-  const { goBack } = useApp();
+  const { goBack, lockers, screenData } = useApp();
+  const preselectedLockerId = screenData?.preselectedLockerId;
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<MainCategory | ''>('');
@@ -49,6 +51,10 @@ export default function AddItemScreen() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isPickingPhoto, setIsPickingPhoto] = useState(false);
   const [inLocker, setInLocker] = useState(true);
+
+  // Locker selector state
+  const [selectedLockerId, setSelectedLockerId] = useState(preselectedLockerId || (lockers[0]?.id || 'default'));
+  const [showLockerDropdown, setShowLockerDropdown] = useState(false);
 
   const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const newId = Date.now() + Math.random();
@@ -107,6 +113,7 @@ export default function AddItemScreen() {
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!name.trim()) errs.name = 'Item name is required';
+    if (!selectedLockerId) errs.locker = 'Please select a locker';
     if (!category) errs.category = 'Category is required';
     if (category === 'Other' && !categoryCustom.trim()) errs.categoryCustom = 'Description is required';
     if ((isJewelCategory(category) || category === 'Documents') && !subType) errs.subType = 'Item type is required';
@@ -118,10 +125,8 @@ export default function AddItemScreen() {
     return Object.keys(errs).length === 0;
   };
 
-  // Helper: read photo file and convert to data URL
   const readPhotoFile = async (path: string): Promise<string | null> => {
     try {
-      // On native platforms, read the temp file from the URI
       if (Capacitor.isNativePlatform()) {
         const { Filesystem } = await import('@capacitor/filesystem');
         const result = await Filesystem.readFile({ path, directory: undefined });
@@ -131,7 +136,6 @@ export default function AddItemScreen() {
         }
         return null;
       }
-      // On web, path is already a data URL
       return path;
     } catch (err: any) {
       console.error('[readPhotoFile] Error reading file:', err);
@@ -139,7 +143,6 @@ export default function AddItemScreen() {
     }
   };
 
-  // ===== NATIVE CAPACITOR CAMERA - TAKE PHOTO =====
   const takePhoto = async (isBill: boolean) => {
     const prefix = isBill ? 'Bill' : 'Photo';
     const maxCount = isBill ? 3 : 5;
@@ -153,8 +156,6 @@ export default function AddItemScreen() {
     setIsPickingPhoto(true);
 
     try {
-      // Use Uri resultType — bypasses native OK/Retry preview screen
-      // Camera saves directly to a temp file and returns the path
       const image = await CapCamera.getPhoto({
         quality: 75,
         allowEditing: false,
@@ -170,7 +171,6 @@ export default function AddItemScreen() {
         return;
       }
 
-      // Read the temp file and convert to data URL
       const dataUrl = await readPhotoFile(image.path);
       if (!dataUrl) {
         addToast(`${prefix}: Failed to read photo file`, 'error');
@@ -200,7 +200,6 @@ export default function AddItemScreen() {
     }
   };
 
-  // ===== NATIVE CAPACITOR CAMERA - PICK FROM GALLERY =====
   const pickFromGallery = async (isBill: boolean) => {
     const prefix = isBill ? 'Bill' : 'Photo';
     const maxCount = isBill ? 3 : 5;
@@ -214,8 +213,6 @@ export default function AddItemScreen() {
     setIsPickingPhoto(true);
 
     try {
-      // Pick a single image from gallery — one tap = one image
-      // User taps Gallery again if they want more
       const image = await CapCamera.getPhoto({
         quality: 75,
         allowEditing: false,
@@ -231,7 +228,6 @@ export default function AddItemScreen() {
         return;
       }
 
-      // Read the temp file and convert to data URL
       const dataUrl = await readPhotoFile(image.path);
       if (!dataUrl) {
         addToast(`${prefix}: Failed to read photo file`, 'error');
@@ -271,7 +267,6 @@ export default function AddItemScreen() {
     addToast('Bill photo removed', 'info');
   };
 
-  // ===== SAVE =====
   const handleSave = async () => {
     if (!validate()) return;
     setIsSaving(true);
@@ -279,6 +274,7 @@ export default function AddItemScreen() {
 
     const item: LockerItem = {
       id: generateUUID(),
+      lockerId: selectedLockerId,
       name: name.trim(),
       description: description.trim(),
       category: category as MainCategory,
@@ -338,6 +334,8 @@ export default function AddItemScreen() {
     </button>
   );
 
+  const selectedLocker = lockers.find(l => l.id === selectedLockerId);
+
   return (
     <div className="h-full flex flex-col bg-[#0A1628] relative">
       {/* Toast Notifications */}
@@ -360,7 +358,7 @@ export default function AddItemScreen() {
 
       {/* Header */}
       <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1A3A5C]/50">
-        <button onClick={goBack} className="p-2 -ml-2 rounded-full active:bg-white/5">
+        <button onClick={goBack} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
           <ChevronLeft className="w-5 h-5 text-[#8A94A6]" />
         </button>
         <div className="flex-1 flex flex-col items-center pr-8">
@@ -373,6 +371,40 @@ export default function AddItemScreen() {
 
       {/* Form */}
       <div className="flex-1 overflow-y-auto px-5 py-4 pb-32">
+        {/* Locker Selector */}
+        <div className="mb-5">
+          <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">
+            Select Locker <span className="text-red-400">*</span>
+          </label>
+          <div className="relative">
+            <button
+              onClick={() => setShowLockerDropdown(!showLockerDropdown)}
+              className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white text-sm text-left flex items-center justify-between focus:border-[#C9A84C]/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-[#C9A84C]" />
+                <span>{selectedLocker?.name || 'Select a locker'}</span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-[#8A94A6] transition-transform ${showLockerDropdown ? 'rotate-180' : ''}`} />
+            </button>
+            {showLockerDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[#111D2E] border border-[#1A3A5C] rounded-xl z-50 overflow-hidden max-h-60 overflow-y-auto">
+                {lockers.map((locker) => (
+                  <button
+                    key={locker.id}
+                    onClick={() => { setSelectedLockerId(locker.id); setShowLockerDropdown(false); setErrors(p => ({...p, locker: ''})); }}
+                    className={`w-full px-4 py-3 text-left text-sm flex items-center gap-2 hover:bg-[#1A3A5C] transition-colors ${selectedLockerId === locker.id ? 'bg-[#1A3A5C] text-[#C9A84C]' : 'text-white'}`}
+                  >
+                    <Building2 className="w-4 h-4" />
+                    {locker.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {errors.locker && <p className="text-xs text-red-400 mt-1">{errors.locker}</p>}
+        </div>
+
         {/* Item Name */}
         <div className="mb-5">
           <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">
@@ -525,13 +557,11 @@ export default function AddItemScreen() {
           </div>
         </div>
 
-        {/* === PHOTOS - NATIVE CAPACITOR CAMERA === */}
+        {/* Photos */}
         <div className="mb-5">
           <div className="mb-2">
             <span className="text-xs text-[#8A94A6] uppercase tracking-wider">Photos ({photos.length}/5)</span>
           </div>
-
-          {/* Native Camera Buttons */}
           <div className="flex gap-3 mb-3">
             <PhotoButton
               onClick={() => takePhoto(false)}
@@ -548,8 +578,6 @@ export default function AddItemScreen() {
               disabled={isPickingPhoto}
             />
           </div>
-
-          {/* Photo thumbnails */}
           {photos.length > 0 && (
             <div className="flex gap-2 flex-wrap">
               {photos.map((photo, index) => (
@@ -568,7 +596,7 @@ export default function AddItemScreen() {
           )}
         </div>
 
-        {/* === BILL PHOTOS - NATIVE CAPACITOR CAMERA === */}
+        {/* Bill Photos */}
         <div className="mb-5">
           <button onClick={() => setShowBillSection((v) => !v)}
             className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] active:bg-[#1A3A5C] active:scale-[0.98] transition-all"
@@ -603,7 +631,6 @@ export default function AddItemScreen() {
                   disabled={isPickingPhoto}
                 />
               </div>
-
               {billPhotos.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {billPhotos.map((photo, index) => (
@@ -623,7 +650,7 @@ export default function AddItemScreen() {
           )}
         </div>
 
-        {/* In Locker / Out of Locker Toggle - now inside scrollable area */}
+        {/* In Locker Toggle */}
         <div className="mb-6 mt-2">
           <button
             onClick={() => setInLocker((v) => !v)}
@@ -641,7 +668,6 @@ export default function AddItemScreen() {
           </button>
         </div>
 
-        {/* Bottom spacer for save button */}
         <div className="h-4" />
       </div>
 
@@ -671,8 +697,7 @@ export default function AddItemScreen() {
             </span>
           ) : (
             `Save to ${APP_NAME}`
-          )
-          }
+          )}
         </button>
       </div>
     </div>

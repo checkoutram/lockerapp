@@ -1,3 +1,5 @@
+buildDir = '/mnt/vlocker-build'
+
 apply plugin: 'com.android.application'
 
 android {

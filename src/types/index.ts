@@ -1,5 +1,16 @@
+export interface Locker {
+  id: string;
+  name: string;
+  bankName?: string;
+  branch?: string;
+  location?: string;
+  description?: string;
+  createdAt: string;
+}
+
 export interface LockerItem {
   id: string;
+  lockerId: string;
   name: string;
   description: string;
   category: MainCategory;
@@ -17,11 +28,11 @@ export interface LockerItem {
 
 export interface SecretQuestions {
   question1: string;
-  answer1: string;   // SHA-256 hashed
+  answer1: string;
   question2: string;
-  answer2: string;   // SHA-256 hashed
+  answer2: string;
   question3: string;
-  answer3: string;   // SHA-256 hashed
+  answer3: string;
 }
 
 export type ScreenName =
@@ -29,9 +40,12 @@ export type ScreenName =
   | 'setup'
   | 'auth'
   | 'home'
+  | 'lockerList'
+  | 'lockerDetail'
   | 'addItem'
   | 'itemDetail'
-  | 'settings';
+  | 'settings'
+  | 'manageLockers';
 
 export type MainCategory =
   | 'Gold'
@@ -42,6 +56,12 @@ export type MainCategory =
   | 'Other';
 
 export type WeightUnit = 'g' | 'kg' | 'mg' | 'ct' | 'pcs';
+
+export interface AppAlert {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
 
 export const MAIN_CATEGORIES: MainCategory[] = [
   'Gold',
@@ -102,12 +122,10 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Other: '#95A5A6',
 };
 
-// Validate that a photo is a valid base64 data URL (not an old key string)
 export function isValidPhoto(photo: string): boolean {
   return typeof photo === 'string' && photo.startsWith('data:image/');
 }
 
-// Filter out broken photos (old key strings) and return only valid ones
 export function getValidPhotos(photos: string[] | undefined): string[] {
   if (!photos || !Array.isArray(photos)) return [];
   return photos.filter(isValidPhoto);
@@ -125,9 +143,8 @@ export const PIECE_COUNT_SUBTYPES = [
 
 export const APP_NAME = 'vlocker';
 
-// Pre-defined secret questions for PIN recovery
 export const SECRET_QUESTIONS = [
-  'What is your mother\'s maiden name?',
+  "What is your mother's maiden name?",
   'What was the name of your first school?',
   'What was the name of your first pet?',
   'What is your favorite childhood movie?',
