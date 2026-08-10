@@ -77,10 +77,10 @@ function AlertsOverlay() {
           key={alert.id}
           className={`pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium animate-in slide-in-from-top fade-in duration-300 ${
             alert.type === 'success'
-              ? 'bg-emerald-500/90 text-white'
+              ? 'bg-emerald-500/90 text-[#F7F5EF]'
               : alert.type === 'error'
-              ? 'bg-red-500/90 text-white'
-              : 'bg-[#1A3A5C]/90 text-white border border-[#C9A84C]/30'
+              ? 'bg-red-500/90 text-[#F7F5EF]'
+              : 'bg-[#1D344D]/90 text-[#F7F5EF] border border-[#D6B45C]/30'
           }`}
         >
           {alert.type === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
@@ -110,7 +110,7 @@ export default function App() {
   return (
     <AppProvider>
       <div className="min-h-screen w-full bg-[#050A12] flex items-center justify-center p-0 md:p-4">
-        <div className="w-full max-w-[430px] h-[100dvh] md:h-[850px] bg-[#0A1628] md:rounded-[40px] overflow-hidden shadow-2xl shadow-black/50 relative isolate border border-[#1A3A5C]/30 md:border-[#1A3A5C]/50">
+        <div className="w-full max-w-[430px] h-[100dvh] md:h-[850px] bg-[#081321] md:rounded-[40px] overflow-hidden shadow-2xl shadow-black/50 relative isolate border border-[#1D344D]/30 md:border-[#1D344D]/50">
           <AppContent />
         </div>
       </div>

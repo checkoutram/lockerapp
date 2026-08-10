@@ -56,13 +56,13 @@ export default function HomeScreen() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0A1628] relative">
+    <div className="h-full flex flex-col bg-[#081321] relative">
       {/* Toast Notifications */}
       <div className="fixed top-4 left-0 right-0 z-[100] flex flex-col items-center gap-2 pointer-events-none px-4">
         {toasts.map((toast) => (
           <div key={toast.id}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto animate-fade-in max-w-[90%] ${
-              toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+              toast.type === 'success' ? 'bg-[#36B37E] text-[#F7F5EF]' : 'bg-[#D66A6A] text-[#F7F5EF]'
             }`}
           >
             {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
@@ -74,20 +74,20 @@ export default function HomeScreen() {
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-6 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl overflow-hidden border border-[#C9A84C]/30">
+          <div className="w-9 h-9 rounded-xl overflow-hidden border border-[#D6B45C]/30">
             <img src="/vlocker-icon.png" alt={APP_NAME} className="w-full h-full object-contain" />
           </div>
           <div>
-            <span className="text-base font-bold text-[#C9A84C] block" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <span className="text-base font-bold text-[#D6B45C] block">
               {APP_NAME}
             </span>
-            <span className="text-[9px] text-[#C9A84C]/50 tracking-wide">Know What Your Locker Holds.</span>
+            <span className="text-[9px] text-[#D6B45C]/50 tracking-wide">Know what's inside your locker</span>
           </div>
         </div>
         <button onClick={() => navigate('settings')} aria-label="Settings"
-          className="w-10 h-10 rounded-xl bg-[#111D2E] border border-[#1A3A5C] flex items-center justify-center active:scale-95 transition-transform"
+          className="w-10 h-10 rounded-xl bg-[#101F32] border border-[#1D344D] flex items-center justify-center active:scale-95 transition-transform"
         >
-          <Settings className="w-5 h-5 text-[#8A94A6]" />
+          <Settings className="w-5 h-5 text-[#A6B2C2]" />
         </button>
       </div>
 
@@ -95,13 +95,13 @@ export default function HomeScreen() {
       <div className="mx-5 mb-4 p-4 rounded-2xl card-vault">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs text-[#8A94A6] uppercase tracking-wider">Items in Locker</p>
-            <p className="text-3xl font-bold text-white mt-1" style={{ fontFamily: "'Playfair Display', serif" }}>{inLockerItems.length}</p>
+            <p className="text-xs text-[#A6B2C2] uppercase tracking-wider">Items in Locker</p>
+            <p className="text-3xl font-bold text-[#F7F5EF] mt-1">{inLockerItems.length}</p>
             {outOfLockerItems.length > 0 && (
               <p className="text-[10px] text-amber-400/70 mt-1">{outOfLockerItems.length} out of locker</p>
             )}
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-[#C9A84C]/10 flex items-center justify-center overflow-hidden">
+          <div className="w-14 h-14 rounded-2xl bg-[#D6B45C]/10 flex items-center justify-center overflow-hidden">
             <img src="/vlocker-icon.png" alt={APP_NAME} className="w-12 h-12 object-contain" />
           </div>
         </div>
@@ -112,22 +112,22 @@ export default function HomeScreen() {
         {!loaded ? (
           <div className="grid grid-cols-2 gap-3">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="rounded-2xl bg-[#111D2E] border border-[#1A3A5C] h-52 animate-pulse" />
+              <div key={i} className="rounded-2xl bg-[#101F32] border border-[#1D344D] h-52 animate-pulse" />
             ))}
           </div>
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
-            <div className="w-32 h-32 rounded-full bg-[#111D2E] border border-[#1A3A5C] flex items-center justify-center mb-6 relative">
-              <Lock className="w-14 h-14 text-[#8A94A6]/40" />
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#0A1628] border border-[#1A3A5C] flex items-center justify-center">
-                <ImageIcon className="w-4 h-4 text-[#8A94A6]/40" />
+            <div className="w-32 h-32 rounded-full bg-[#101F32] border border-[#1D344D] flex items-center justify-center mb-6 relative">
+              <Lock className="w-14 h-14 text-[#A6B2C2]/40" />
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#081321] border border-[#1D344D] flex items-center justify-center">
+                <ImageIcon className="w-4 h-4 text-[#A6B2C2]/40" />
               </div>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h3 className="text-xl font-bold text-[#F7F5EF] mb-2">
               Your Locker is Empty
             </h3>
-            <p className="text-sm text-[#8A94A6] text-center max-w-[240px]">
-              Tap the + button to start adding items to your secure {APP_NAME}.
+            <p className="text-sm text-[#A6B2C2] text-center max-w-[240px]">
+              Tap + to add items to {APP_NAME}.
             </p>
           </div>
         ) : (
@@ -169,19 +169,19 @@ export default function HomeScreen() {
                         />
                         {item.photos.length > 1 && (
                           <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full">
-                            <span className="text-xs text-white font-medium">{item.photos.length}</span>
+                            <span className="text-xs text-[#F7F5EF] font-medium">{item.photos.length}</span>
                           </div>
                         )}
                       </>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <ImageIcon className="w-8 h-8 text-[#8A94A6]/30" />
+                        <ImageIcon className="w-8 h-8 text-[#A6B2C2]/30" />
                       </div>
                     )}
                     {/* Out of Locker Badge */}
                     {isOut && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                        <div className="bg-amber-500/90 text-[#0A1628] text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <div className="bg-amber-500/90 text-[#081321] text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
                           <ArchiveX className="w-3 h-3" /> Out of Locker
                         </div>
                       </div>
@@ -190,8 +190,8 @@ export default function HomeScreen() {
 
                   {/* Info */}
                   <div className="p-3">
-                    <p className="text-sm font-medium text-white truncate">{item.name}</p>
-                    <p className="text-[11px] text-[#8A94A6] mt-0.5 truncate">{displaySubType || displayCategory}</p>
+                    <p className="text-sm font-medium text-[#F7F5EF] truncate">{item.name}</p>
+                    <p className="text-[11px] text-[#A6B2C2] mt-0.5 truncate">{displaySubType || displayCategory}</p>
                     <div className="flex items-center justify-between mt-1.5">
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
                         backgroundColor: `${catColor}20`, color: catColor, border: `1px solid ${catColor}30`,
@@ -200,18 +200,18 @@ export default function HomeScreen() {
                       </span>
                       <div className="flex items-center gap-2">
                         {item.billPhotos && item.billPhotos.length > 0 && (
-                          <span className="text-[10px] text-[#10B981] flex items-center gap-0.5">
+                          <span className="text-[10px] text-[#5ED6A5] flex items-center gap-0.5">
                             <Receipt className="w-2.5 h-2.5" />Bill
                           </span>
                         )}
                         {weightSummary && (
-                          <span className="text-[10px] text-[#8A94A6] flex items-center gap-0.5">
+                          <span className="text-[10px] text-[#A6B2C2] flex items-center gap-0.5">
                             <Scale className="w-2.5 h-2.5" />{weightSummary}
                           </span>
                         )}
                       </div>
                     </div>
-                    <p className="text-[10px] text-[#8A94A6] mt-1">{formatDate(item.dateAdded)}</p>
+                    <p className="text-[10px] text-[#A6B2C2] mt-1">{formatDate(item.dateAdded)}</p>
                   </div>
                 </div>
               );
@@ -222,25 +222,25 @@ export default function HomeScreen() {
 
       {/* FAB */}
       <button onClick={() => navigate('addItem')} aria-label="Add Item"
-        className="absolute bottom-6 right-5 w-14 h-14 rounded-full bg-[#C9A84C] flex items-center justify-center shadow-lg active:scale-95 transition-transform z-10 animate-pulse-gold"
+        className="absolute bottom-6 right-5 w-14 h-14 rounded-full bg-[#D6B45C] flex items-center justify-center shadow-lg active:scale-95 transition-transform z-10 animate-pulse-gold"
       >
-        <Plus className="w-6 h-6 text-[#0A1628]" strokeWidth={2.5} />
+        <Plus className="w-6 h-6 text-[#081321]" strokeWidth={2.5} />
       </button>
 
       {/* Context Menu */}
       {contextMenu && (
         <>
           <div className="absolute inset-0 z-40" onClick={() => setContextMenu(null)} />
-          <div className="absolute z-50 bg-[#111D2E] border border-[#1A3A5C] rounded-2xl shadow-xl overflow-hidden min-w-[160px] animate-scale-in"
+          <div className="absolute z-50 bg-[#101F32] border border-[#1D344D] rounded-2xl shadow-xl overflow-hidden min-w-[160px] animate-scale-in"
             style={{ left: contextMenu.x > 200 ? contextMenu.x - 160 : contextMenu.x, top: contextMenu.y > 400 ? contextMenu.y - 100 : contextMenu.y }}
           >
             <button onClick={() => { navigate('itemDetail', contextMenu.item.id); setContextMenu(null); }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-[#1A3A5C] transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#F7F5EF] hover:bg-[#1D344D] transition-colors"
             >
-              <Eye className="w-4 h-4 text-[#8A94A6]" />View Details
+              <Eye className="w-4 h-4 text-[#A6B2C2]" />View Details
             </button>
             <button onClick={() => { setDeleteConfirm(contextMenu.item); setContextMenu(null); }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#E98B8B] hover:bg-[#3A2427] transition-colors"
             >
               <Trash2 className="w-4 h-4" />Delete
             </button>
@@ -251,25 +251,25 @@ export default function HomeScreen() {
       {/* Delete Confirmation */}
       {deleteConfirm && (
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-6 animate-fade-in">
-          <div className="bg-[#111D2E] border border-[#1A3A5C] rounded-3xl p-6 w-full max-w-[340px]">
+          <div className="bg-[#101F32] border border-[#1D344D] rounded-3xl p-6 w-full max-w-[340px]">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center"><Trash2 className="w-5 h-5 text-red-400" /></div>
-              <h3 className="text-lg font-bold text-white">Delete Item</h3>
+              <div className="w-10 h-10 rounded-xl bg-[#3A2427] flex items-center justify-center"><Trash2 className="w-5 h-5 text-[#E98B8B]" /></div>
+              <h3 className="text-lg font-bold text-[#F7F5EF]">Delete Item</h3>
             </div>
-            <p className="text-sm text-[#8A94A6] mb-2">Remove <span className="text-white font-medium">{deleteConfirm.name}</span> from your {APP_NAME}?</p>
-            <p className="text-sm text-red-400 mb-6">This will delete all photos and information permanently.</p>
+            <p className="text-sm text-[#A6B2C2] mb-2">Remove <span className="text-[#F7F5EF] font-medium">{deleteConfirm.name}</span> from your {APP_NAME}?</p>
+            <p className="text-sm text-[#E98B8B] mb-6">This will delete all photos and information permanently.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 rounded-2xl bg-[#1A3A5C] text-white text-sm font-medium active:scale-95 transition-transform">Cancel</button>
-              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 py-3 rounded-2xl bg-red-500 text-white text-sm font-medium active:scale-95 transition-transform">Delete</button>
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 rounded-2xl bg-[#1D344D] text-[#F7F5EF] text-sm font-medium active:scale-95 transition-transform">Cancel</button>
+              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 py-3 rounded-2xl bg-[#D66A6A] text-[#F7F5EF] text-sm font-medium active:scale-95 transition-transform">Delete</button>
             </div>
           </div>
         </div>
       )}
 
       {/* Privacy Note */}
-      <div className="shrink-0 flex items-center justify-center gap-1.5 text-[10px] text-emerald-400/70 bg-emerald-500/5 px-4 py-2 border-t border-emerald-500/10">
+      <div className="shrink-0 flex items-center justify-center gap-1.5 text-[10px] text-[#5ED6A5]/70 bg-emerald-500/5 px-4 py-2 border-t border-[#36B37E]">
         <Shield className="w-3 h-3 flex-shrink-0" />
-        <span>Your data stays on your device - completely private &amp; secure</span>
+        <span>Your data stays on your device - private and secure</span>
       </div>
     </div>
   );

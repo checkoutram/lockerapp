@@ -153,7 +153,7 @@ export default function AuthScreen() {
     if (submittingRef.current) return;
 
     if (!Capacitor.isNativePlatform()) {
-      setError('Biometric login requires the mobile app. Use your PIN.');
+      setError('Use PIN on web. Biometric works in the app.');
       setShake(true);
       setTimeout(() => setShake(false), 500);
       return;
@@ -162,7 +162,7 @@ export default function AuthScreen() {
     try {
       const result = await NativeBiometric.isAvailable();
       if (!result.isAvailable) {
-        setError('No biometric hardware found on this device. Use your PIN.');
+        setError('No biometric on this device. Use PIN.');
         return;
       }
 
@@ -170,8 +170,8 @@ export default function AuthScreen() {
       setError('');
 
       await NativeBiometric.verifyIdentity({
-        reason: 'Authenticate to access your locker',
-        title: 'vlocker Biometric Login',
+        reason: 'Unlock your locker',
+        title: 'Biometric Login',
         subtitle: 'Verify your identity',
         description: 'Use your fingerprint or face to unlock',
       });
@@ -181,9 +181,9 @@ export default function AuthScreen() {
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('cancel') || msg.includes('dismiss') || msg.includes('user')) {
-        setError('Biometric authentication cancelled.');
+        setError('Biometric cancelled.');
       } else {
-        setError('Biometric authentication failed. Use your PIN.');
+        setError('Biometric failed. Use PIN.');
       }
     } finally {
       submittingRef.current = false;
@@ -240,7 +240,7 @@ export default function AuthScreen() {
       setForgotStep('createPin');
       setVerifyAnswers(['', '', '']);
     } else {
-      setError('One or more answers are incorrect. Please try again.');
+      setError('Answer incorrect. Try again.');
       setShake(true);
       setTimeout(() => setShake(false), 500);
     }
@@ -359,12 +359,12 @@ export default function AuthScreen() {
     <div className="grid grid-cols-3 gap-3 w-full max-w-[280px] mb-6">
       {keypadNumbers.map((num) => (
         <button key={num} onClick={() => onInput(num)}
-          className="w-full aspect-square rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-xl font-semibold text-white active:bg-[#1A3A5C] active:scale-95 transition-all flex items-center justify-center"
+          className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-xl font-semibold text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
         >{num}</button>
       ))}
       {showFingerprint && biometricEnabled && Capacitor.isNativePlatform() ? (
         <button onClick={handleBiometric}
-          className="w-full aspect-square rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-[#C9A84C] active:bg-[#1A3A5C] active:scale-95 transition-all flex items-center justify-center"
+          className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#D6B45C] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
         >
           <Fingerprint className="w-6 h-6" />
         </button>
@@ -372,10 +372,10 @@ export default function AuthScreen() {
         <div className="w-full aspect-square" />
       )}
       <button onClick={() => onInput('0')}
-        className="w-full aspect-square rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-xl font-semibold text-white active:bg-[#1A3A5C] active:scale-95 transition-all flex items-center justify-center"
+        className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-xl font-semibold text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
       >0</button>
       <button onClick={onBackspace}
-        className="w-full aspect-square rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white active:bg-[#1A3A5C] active:scale-95 transition-all flex items-center justify-center"
+        className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" />
@@ -392,7 +392,7 @@ export default function AuthScreen() {
           <div className="w-7 h-7 rounded-lg overflow-hidden">
             <img src="/vlocker-icon.png" alt={APP_NAME} className="w-full h-full object-contain" />
           </div>
-          <span className="text-sm text-[#C9A84C] font-medium" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <span className="text-sm text-[#D6B45C] font-medium">
             {APP_NAME}
           </span>
         </div>
@@ -400,77 +400,77 @@ export default function AuthScreen() {
 
       <div className="flex-1 flex flex-col items-center px-8">
         {/* Icon */}
-        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#C9A84C]/20 to-[#C9A84C]/5 border border-[#C9A84C]/30 flex items-center justify-center mb-4 gold-border-glow overflow-hidden">
+        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#D6B45C]/20 to-[#D6B45C]/5 border border-[#D6B45C]/30 flex items-center justify-center mb-4 gold-border-glow overflow-hidden">
           <img src="/vlocker-icon.png" alt={APP_NAME} className="w-16 h-16 object-contain" />
         </div>
 
-        <p className="text-xs text-[#C9A84C]/60 mb-1 tracking-wide font-medium">
-          Know What Your Locker Holds.
+        <p className="text-xs text-[#D6B45C]/60 mb-1 tracking-wide font-medium">
+          Know what's inside your locker
         </p>
 
         {forgotStep === 'none' ? (
           <>
-            <h2 className="text-xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2 className="text-xl font-bold text-[#F7F5EF] mb-2">
               Enter PIN
             </h2>
-            <p className="text-sm text-[#8A94A6] text-center mb-8">
-              Unlock your secure locker
+            <p className="text-sm text-[#A6B2C2] text-center mb-8">
+              Unlock your locker
             </p>
           </>
         ) : forgotStep === 'verifyQuestions' ? (
           <>
-            <h2 className="text-xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2 className="text-xl font-bold text-[#F7F5EF] mb-2">
               Verify Identity
             </h2>
-            <p className="text-sm text-[#8A94A6] text-center mb-6">
+            <p className="text-sm text-[#A6B2C2] text-center mb-6">
               Answer your security questions to reset PIN
             </p>
           </>
         ) : forgotStep === 'createPin' ? (
           <>
-            <h2 className="text-xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2 className="text-xl font-bold text-[#F7F5EF] mb-2">
               Create New PIN
             </h2>
-            <p className="text-sm text-[#8A94A6] text-center mb-8">
+            <p className="text-sm text-[#A6B2C2] text-center mb-8">
               Set a new 4-6 digit PIN
             </p>
           </>
         ) : forgotStep === 'confirmPin' ? (
           <>
-            <h2 className="text-xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2 className="text-xl font-bold text-[#F7F5EF] mb-2">
               Confirm New PIN
             </h2>
-            <p className="text-sm text-[#8A94A6] text-center mb-8">
+            <p className="text-sm text-[#A6B2C2] text-center mb-8">
               Re-enter your new PIN
             </p>
           </>
         ) : (
           <>
-            <h2 className="text-xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2 className="text-xl font-bold text-[#F7F5EF] mb-2">
               Reset PIN
             </h2>
-            <p className="text-sm text-[#8A94A6] text-center mb-6">
+            <p className="text-sm text-[#A6B2C2] text-center mb-6">
               No security questions found
             </p>
           </>
         )}
 
         {error && (
-          <p className="text-xs text-red-400 mb-4 text-center animate-fade-in">{error}</p>
+          <p className="text-xs text-[#E98B8B] mb-4 text-center animate-fade-in">{error}</p>
         )}
 
         {forgotStep === 'none' ? (
           <>
             {isLocked ? (
               <div className="flex flex-col items-center gap-4 my-6">
-                <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
-                  <AlertTriangle className="w-8 h-8 text-red-400" />
+                <div className="w-16 h-16 rounded-full bg-[#3A2427] flex items-center justify-center">
+                  <AlertTriangle className="w-8 h-8 text-[#E98B8B]" />
                 </div>
-                <p className="text-lg font-bold text-red-400">
+                <p className="text-lg font-bold text-[#E98B8B]">
                   {Math.floor(lockoutTime / 60)}:{String(lockoutTime % 60).padStart(2, '0')}
                 </p>
-                <p className="text-sm text-[#8A94A6] text-center">
-                  Too many failed attempts.<br />Please wait before trying again.
+                <p className="text-sm text-[#A6B2C2] text-center">
+                  Too many attempts.<br />Wait before trying again.
                 </p>
               </div>
             ) : (
@@ -487,7 +487,7 @@ export default function AuthScreen() {
 
             {!isLocked && (
               <button onClick={handleStartForgot}
-                className="text-sm text-[#8A94A6] hover:text-[#C9A84C] transition-colors mt-2"
+                className="text-sm text-[#A6B2C2] hover:text-[#D6B45C] transition-colors mt-2"
               >
                 Forgot PIN?
               </button>
@@ -497,7 +497,7 @@ export default function AuthScreen() {
           <div className="w-full max-w-md space-y-4">
             {savedQuestions && [0, 1, 2].map((idx) => (
               <div key={idx} className="space-y-2">
-                <p className="text-sm text-[#8A94A6] font-medium">
+                <p className="text-sm text-[#A6B2C2] font-medium">
                   {idx + 1}. {idx === 0 ? savedQuestions.q1 : idx === 1 ? savedQuestions.q2 : savedQuestions.q3}
                 </p>
                 <input
@@ -512,18 +512,18 @@ export default function AuthScreen() {
                     setError('');
                   }}
                   placeholder="Your answer"
-                  className="w-full p-3 rounded-xl bg-[#111D2E] border border-[#1A3A5C] text-sm text-white placeholder:text-[#8A94A6]/50 focus:border-[#C9A84C]/50 focus:outline-none transition-colors"
+                  className="w-full p-3 rounded-xl bg-[#101F32] border border-[#1D344D] text-sm text-[#F7F5EF] placeholder:text-[#A6B2C2]/50 focus:border-[#D6B45C]/50 focus:outline-none transition-colors"
                 />
               </div>
             ))}
             <div className="flex gap-3 mt-4">
               <button onClick={handleCancelForgot}
-                className="flex-1 py-3 rounded-2xl bg-[#1A3A5C] text-white text-sm font-medium active:scale-95 transition-transform"
+                className="flex-1 py-3 rounded-2xl bg-[#1D344D] text-[#F7F5EF] text-sm font-medium active:scale-95 transition-transform"
               >
                 Cancel
               </button>
               <button onClick={handleVerifyAnswers}
-                className="flex-1 py-3 rounded-2xl bg-[#C9A84C] text-[#0A1628] text-sm font-medium active:scale-95 transition-transform"
+                className="flex-1 py-3 rounded-2xl bg-[#D6B45C] text-[#081321] text-sm font-medium active:scale-95 transition-transform"
               >
                 Verify
               </button>
@@ -534,7 +534,7 @@ export default function AuthScreen() {
             {renderPinDots(newPin)}
             {renderKeypad(handleNewPinInput, handleNewPinBackspace)}
             <button onClick={handleCancelForgot}
-              className="text-sm text-[#8A94A6] hover:text-[#C9A84C] transition-colors mt-2"
+              className="text-sm text-[#A6B2C2] hover:text-[#D6B45C] transition-colors mt-2"
             >
               Cancel
             </button>
@@ -544,27 +544,27 @@ export default function AuthScreen() {
             {renderPinDots(confirmNewPin)}
             {renderKeypad(handleConfirmNewPinInput, handleConfirmNewPinBackspace)}
             <button onClick={handleCancelForgot}
-              className="text-sm text-[#8A94A6] hover:text-[#C9A84C] transition-colors mt-2"
+              className="text-sm text-[#A6B2C2] hover:text-[#D6B45C] transition-colors mt-2"
             >
               Cancel
             </button>
           </>
         ) : forgotStep === 'legacyReset' ? (
           <div className="w-full max-w-md space-y-4">
-            <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20">
-              <p className="text-sm text-[#8A94A6] mb-2">
+            <div className="p-4 rounded-2xl bg-[#3A2427] border border-[#D66A6A]">
+              <p className="text-sm text-[#A6B2C2] mb-2">
                 You haven't set up security questions. To reset your PIN, all locker data must be wiped.
               </p>
-              <p className="text-sm text-red-400">This action cannot be undone.</p>
+              <p className="text-sm text-[#E98B8B]">This action cannot be undone.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={handleCancelForgot}
-                className="flex-1 py-3 rounded-2xl bg-[#1A3A5C] text-white text-sm font-medium active:scale-95 transition-transform"
+                className="flex-1 py-3 rounded-2xl bg-[#1D344D] text-[#F7F5EF] text-sm font-medium active:scale-95 transition-transform"
               >
                 Cancel
               </button>
               <button onClick={handleWipeData}
-                className="flex-1 py-3 rounded-2xl bg-red-500 text-white text-sm font-medium active:scale-95 transition-transform"
+                className="flex-1 py-3 rounded-2xl bg-[#D66A6A] text-[#F7F5EF] text-sm font-medium active:scale-95 transition-transform"
               >
                 Wipe & Reset
               </button>
@@ -573,9 +573,9 @@ export default function AuthScreen() {
         ) : null}
 
         {/* Privacy Note */}
-        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400/80 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 mt-6">
+        <div className="flex items-center gap-1.5 text-[10px] text-[#5ED6A5]/80 bg-[#123D32] px-3 py-1.5 rounded-full border border-[#36B37E] mt-6">
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-          <span>Your data stays on your device - completely private &amp; secure</span>
+          <span>Your data stays on your device - private and secure</span>
         </div>
       </div>
     </div>

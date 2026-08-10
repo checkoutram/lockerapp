@@ -107,26 +107,26 @@ export default function LockerListScreen() {
   const totalInLocker = items.filter((i) => i.inLocker).length;
 
   return (
-    <div className="h-full flex flex-col bg-[#0A1628] relative">
+    <div className="h-full flex flex-col bg-[#081321] relative">
       <div style={{ height: topInset }} />
 
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-6 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl overflow-hidden border border-[#C9A84C]/30">
+          <div className="w-9 h-9 rounded-xl overflow-hidden border border-[#D6B45C]/30">
             <img src="/vlocker-icon.png" alt={APP_NAME} className="w-full h-full object-contain" />
           </div>
           <div>
-            <span className="text-base font-bold text-[#C9A84C] block" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <span className="text-base font-bold text-[#D6B45C] block">
               {APP_NAME}
             </span>
-            <span className="text-[9px] text-[#C9A84C]/50 tracking-wide">Know What Your Locker Holds.</span>
+            <span className="text-[9px] text-[#D6B45C]/50 tracking-wide">Know what's inside your locker</span>
           </div>
         </div>
         <button onClick={() => navigate('settings')} aria-label="Settings"
-          className="w-10 h-10 rounded-xl bg-[#111D2E] border border-[#1A3A5C] flex items-center justify-center active:scale-95 transition-transform"
+          className="w-10 h-10 rounded-xl bg-[#101F32] border border-[#1D344D] flex items-center justify-center active:scale-95 transition-transform"
         >
-          <Settings className="w-5 h-5 text-[#8A94A6]" />
+          <Settings className="w-5 h-5 text-[#A6B2C2]" />
         </button>
       </div>
 
@@ -137,7 +137,7 @@ export default function LockerListScreen() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search lockers..."
-          className="w-full px-4 py-2.5 bg-[#111D2E] border border-[#1A3A5C] text-white placeholder-[#8A94A6]/60 rounded-xl focus:border-[#C9A84C]/50 focus:outline-none text-sm"
+          className="w-full px-4 py-2.5 bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] placeholder-[#667487]/60 rounded-xl focus:border-[#D6B45C]/50 focus:outline-none text-sm"
         />
       </div>
 
@@ -145,8 +145,8 @@ export default function LockerListScreen() {
       <div className="mx-5 mb-4 p-4 rounded-2xl card-vault">
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <p className="text-xs text-[#8A94A6] uppercase tracking-wider">Items in Locker</p>
-            <p className="text-3xl font-bold text-white mt-1" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <p className="text-xs text-[#A6B2C2] uppercase tracking-wider">Items in Locker</p>
+            <p className="text-3xl font-bold text-[#F7F5EF] mt-1">
               {totalInLocker}
             </p>
             {totalItems > totalInLocker && (
@@ -155,15 +155,15 @@ export default function LockerListScreen() {
           </div>
           <div className="flex gap-3">
             <div className="text-right">
-              <p className="text-xs text-[#8A94A6]">Total Items</p>
-              <p className="text-lg font-bold text-[#C9A84C]" style={{ fontFamily: "'Playfair Display', serif" }}>
+              <p className="text-xs text-[#A6B2C2]">Total Items</p>
+              <p className="text-lg font-bold text-[#D6B45C]">
                 {totalItems}
               </p>
             </div>
-            <div className="w-px bg-[#1A3A5C]" />
+            <div className="w-px bg-[#1D344D]" />
             <div className="text-right">
-              <p className="text-xs text-[#8A94A6]">Lockers</p>
-              <p className="text-lg font-bold text-[#C9A84C]" style={{ fontFamily: "'Playfair Display', serif" }}>
+              <p className="text-xs text-[#A6B2C2]">Lockers</p>
+              <p className="text-lg font-bold text-[#D6B45C]">
                 {lockers.length}
               </p>
             </div>
@@ -173,17 +173,17 @@ export default function LockerListScreen() {
 
       {/* Whats New Banner */}
       {showWhatsNew && (
-        <div className="mx-5 mb-3 bg-[#111D2E] border border-[#C9A84C]/30 rounded-xl p-3 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[#C9A84C]/10 flex items-center justify-center flex-shrink-0">
-            <Shield className="w-4 h-4 text-[#C9A84C]" />
+        <div className="mx-5 mb-3 bg-[#101F32] border border-[#D6B45C]/30 rounded-xl p-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-[#D6B45C]/10 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-4 h-4 text-[#D6B45C]" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white text-sm font-medium">New: Multi-Locker Support</p>
-            <p className="text-[#8A94A6] text-xs mt-0.5">Organize items across multiple lockers</p>
+            <p className="text-[#F7F5EF] text-sm font-medium">New: Multi-Locker Support</p>
+            <p className="text-[#A6B2C2] text-xs mt-0.5">Organize items across multiple lockers</p>
           </div>
           <button
             onClick={() => setShowWhatsNew(false)}
-            className="text-[#C9A84C] text-xs font-medium px-2 py-1 rounded-lg hover:bg-[#C9A84C]/10 transition-colors"
+            className="text-[#D6B45C] text-xs font-medium px-2 py-1 rounded-lg hover:bg-[#D6B45C]/10 transition-colors"
           >
             Got it
           </button>
@@ -195,21 +195,21 @@ export default function LockerListScreen() {
         {isLoading ? (
           <div className="grid grid-cols-1 gap-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="rounded-2xl bg-[#111D2E] border border-[#1A3A5C] h-24 animate-pulse" />
+              <div key={i} className="rounded-2xl bg-[#101F32] border border-[#1D344D] h-24 animate-pulse" />
             ))}
           </div>
         ) : filteredLockers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
-            <div className="w-32 h-32 rounded-full bg-[#111D2E] border border-[#1A3A5C] flex items-center justify-center mb-6 relative">
-              <Lock className="w-14 h-14 text-[#8A94A6]/40" />
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#0A1628] border border-[#1A3A5C] flex items-center justify-center">
-                <Building2 className="w-4 h-4 text-[#8A94A6]/40" />
+            <div className="w-32 h-32 rounded-full bg-[#101F32] border border-[#1D344D] flex items-center justify-center mb-6 relative">
+              <Lock className="w-14 h-14 text-[#A6B2C2]/40" />
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#081321] border border-[#1D344D] flex items-center justify-center">
+                <Building2 className="w-4 h-4 text-[#A6B2C2]/40" />
               </div>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h3 className="text-xl font-bold text-[#F7F5EF] mb-2">
               No Lockers Yet
             </h3>
-            <p className="text-sm text-[#8A94A6] text-center max-w-[240px]">
+            <p className="text-sm text-[#A6B2C2] text-center max-w-[240px]">
               Tap the + button to add your first locker to {APP_NAME}.
             </p>
           </div>
@@ -229,21 +229,21 @@ export default function LockerListScreen() {
                 >
                   <div className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-[#C9A84C]/10 flex items-center justify-center flex-shrink-0 border border-[#C9A84C]/20">
-                        <Building2 className="w-6 h-6 text-[#C9A84C]" />
+                      <div className="w-12 h-12 rounded-xl bg-[#D6B45C]/10 flex items-center justify-center flex-shrink-0 border border-[#D6B45C]/20">
+                        <Building2 className="w-6 h-6 text-[#D6B45C]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-white truncate">{locker.name}</h3>
+                        <h3 className="font-semibold text-[#F7F5EF] truncate">{locker.name}</h3>
                         {locker.bankName && (
-                          <p className="text-[#8A94A6] text-xs mt-0.5 truncate">{locker.bankName}</p>
+                          <p className="text-[#A6B2C2] text-xs mt-0.5 truncate">{locker.bankName}</p>
                         )}
                         <div className="flex items-center gap-2 mt-1.5">
-                          <span className="text-xs text-[#8A94A6]">{itemCount} items</span>
-                          <span className="text-[#1A3A5C]">|</span>
-                          <span className="text-xs text-[#10B981] font-medium">{inLocker} in locker</span>
+                          <span className="text-xs text-[#A6B2C2]">{itemCount} items</span>
+                          <span className="text-[#1D344D]">|</span>
+                          <span className="text-xs text-[#5ED6A5] font-medium">{inLocker} in locker</span>
                         </div>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-[#8A94A6]/40 flex-shrink-0" />
+                      <ChevronRight className="w-5 h-5 text-[#A6B2C2]/40 flex-shrink-0" />
                     </div>
                   </div>
                 </button>
@@ -258,7 +258,7 @@ export default function LockerListScreen() {
         <button
           onClick={handleAddLocker}
           aria-label="Add Locker"
-          className="w-14 h-14 rounded-full bg-[#C9A84C] text-[#0A1628] flex items-center justify-center shadow-lg shadow-[#C9A84C]/20 hover:brightness-110 active:scale-95 transition-all"
+          className="w-14 h-14 rounded-full bg-[#D6B45C] text-[#081321] flex items-center justify-center shadow-lg shadow-[#D6B45C]/20 hover:brightness-110 active:scale-95 transition-all"
         >
           <Plus className="w-6 h-6" strokeWidth={2.5} />
         </button>

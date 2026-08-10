@@ -326,8 +326,8 @@ export default function AddItemScreen() {
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] ${color} text-sm font-medium transition-all select-none
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'active:bg-[#1A3A5C] active:scale-95 cursor-pointer'}`}
+      className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-[#101F32] border border-[#1D344D] ${color} text-sm font-medium transition-all select-none
+        ${disabled ? 'opacity-50 cursor-not-allowed' : 'active:bg-[#1D344D] active:scale-95 cursor-pointer'}`}
     >
       <Icon className="w-4 h-4 flex-shrink-0" />
       <span>{label}</span>
@@ -337,16 +337,16 @@ export default function AddItemScreen() {
   const selectedLocker = lockers.find(l => l.id === selectedLockerId);
 
   return (
-    <div className="h-full flex flex-col bg-[#0A1628] relative">
+    <div className="h-full flex flex-col bg-[#081321] relative">
       {/* Toast Notifications */}
       <div className="fixed top-4 left-0 right-0 z-[100] flex flex-col items-center gap-2 pointer-events-none px-4">
         {toasts.map((toast) => (
           <div
             key={toast.id}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto animate-fade-in max-w-[95%] ${
-              toast.type === 'success' ? 'bg-emerald-500 text-white' :
-              toast.type === 'error' ? 'bg-red-500 text-white' :
-              'bg-[#1A3A5C] text-white border border-[#C9A84C]/30'
+              toast.type === 'success' ? 'bg-[#36B37E] text-[#F7F5EF]' :
+              toast.type === 'error' ? 'bg-[#D66A6A] text-[#F7F5EF]' :
+              'bg-[#1D344D] text-[#F7F5EF] border border-[#D6B45C]/30'
             }`}
           >
             {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
@@ -357,15 +357,15 @@ export default function AddItemScreen() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1A3A5C]/50">
+      <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1D344D]/50">
         <button onClick={goBack} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
-          <ChevronLeft className="w-5 h-5 text-[#8A94A6]" />
+          <ChevronLeft className="w-5 h-5 text-[#A6B2C2]" />
         </button>
         <div className="flex-1 flex flex-col items-center pr-8">
-          <h1 className="text-lg font-bold text-white" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h1 className="text-lg font-bold text-[#F7F5EF]">
             Add Item
           </h1>
-          <span className="text-[9px] text-[#C9A84C]/50 tracking-wide">Know What Your Locker Holds.</span>
+          <span className="text-[9px] text-[#D6B45C]/50 tracking-wide">Know what's inside your locker</span>
         </div>
       </div>
 
@@ -373,27 +373,27 @@ export default function AddItemScreen() {
       <div className="flex-1 overflow-y-auto px-5 py-4 pb-32">
         {/* Locker Selector */}
         <div className="mb-5">
-          <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">
-            Select Locker <span className="text-red-400">*</span>
+          <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">
+            Select Locker <span className="text-[#E98B8B]">*</span>
           </label>
           <div className="relative">
             <button
               onClick={() => setShowLockerDropdown(!showLockerDropdown)}
-              className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white text-sm text-left flex items-center justify-between focus:border-[#C9A84C]/50 transition-colors"
+              className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] text-sm text-left flex items-center justify-between focus:border-[#D6B45C]/50 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-[#C9A84C]" />
+                <Building2 className="w-4 h-4 text-[#D6B45C]" />
                 <span>{selectedLocker?.name || 'Select a locker'}</span>
               </div>
-              <ChevronDown className={`w-4 h-4 text-[#8A94A6] transition-transform ${showLockerDropdown ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-4 h-4 text-[#A6B2C2] transition-transform ${showLockerDropdown ? 'rotate-180' : ''}`} />
             </button>
             {showLockerDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-[#111D2E] border border-[#1A3A5C] rounded-xl z-50 overflow-hidden max-h-60 overflow-y-auto">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[#101F32] border border-[#1D344D] rounded-xl z-50 overflow-hidden max-h-60 overflow-y-auto">
                 {lockers.map((locker) => (
                   <button
                     key={locker.id}
                     onClick={() => { setSelectedLockerId(locker.id); setShowLockerDropdown(false); setErrors(p => ({...p, locker: ''})); }}
-                    className={`w-full px-4 py-3 text-left text-sm flex items-center gap-2 hover:bg-[#1A3A5C] transition-colors ${selectedLockerId === locker.id ? 'bg-[#1A3A5C] text-[#C9A84C]' : 'text-white'}`}
+                    className={`w-full px-4 py-3 text-left text-sm flex items-center gap-2 hover:bg-[#1D344D] transition-colors ${selectedLockerId === locker.id ? 'bg-[#1D344D] text-[#D6B45C]' : 'text-[#F7F5EF]'}`}
                   >
                     <Building2 className="w-4 h-4" />
                     {locker.name}
@@ -402,25 +402,25 @@ export default function AddItemScreen() {
               </div>
             )}
           </div>
-          {errors.locker && <p className="text-xs text-red-400 mt-1">{errors.locker}</p>}
+          {errors.locker && <p className="text-xs text-[#E98B8B] mt-1">{errors.locker}</p>}
         </div>
 
         {/* Item Name */}
         <div className="mb-5">
-          <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">
-            Item Name <span className="text-red-400">*</span>
+          <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">
+            Item Name <span className="text-[#E98B8B]">*</span>
           </label>
           <input type="text" value={name} onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: '' })); }}
             placeholder="e.g., Gold Chain with Pendant"
-            className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white placeholder-[#8A94A6]/40 text-sm focus:border-[#C9A84C]/50 transition-colors"
+            className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] placeholder-[#667487]/40 text-sm focus:border-[#D6B45C]/50 transition-colors"
           />
-          {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
+          {errors.name && <p className="text-xs text-[#E98B8B] mt-1">{errors.name}</p>}
         </div>
 
         {/* CATEGORY Level 1 */}
         <div className="mb-5">
-          <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-3 block">
-            Category <span className="text-red-400">*</span>
+          <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-3 block">
+            Category <span className="text-[#E98B8B]">*</span>
           </label>
           <div className="flex flex-wrap gap-2">
             {MAIN_CATEGORIES.map((cat) => {
@@ -429,7 +429,7 @@ export default function AddItemScreen() {
               return (
                 <button key={cat} onClick={() => handleCategorySelect(cat)}
                   className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 border ${
-                    isSelected ? 'border-transparent text-[#0A1628]' : 'bg-[#111D2E] border-[#1A3A5C] text-white hover:border-[#C9A84C]/30'
+                    isSelected ? 'border-transparent text-[#081321]' : 'bg-[#101F32] border-[#1D344D] text-[#F7F5EF] hover:border-[#D6B45C]/30'
                   }`}
                   style={isSelected ? { backgroundColor: color, borderColor: color } : {}}
                 >
@@ -444,14 +444,14 @@ export default function AddItemScreen() {
               );
             })}
           </div>
-          {errors.category && <p className="text-xs text-red-400 mt-1">{errors.category}</p>}
+          {errors.category && <p className="text-xs text-[#E98B8B] mt-1">{errors.category}</p>}
         </div>
 
         {/* CATEGORY Level 2 */}
         {availableSubTypes.length > 0 && (
           <div className="mb-5 animate-fade-in">
-            <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-3 block">
-              {isJewelCategory(category) ? 'Item Type' : 'Document Type'} <span className="text-red-400">*</span>
+            <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-3 block">
+              {isJewelCategory(category) ? 'Item Type' : 'Document Type'} <span className="text-[#E98B8B]">*</span>
             </label>
             <div className="flex flex-wrap gap-2">
               {availableSubTypes.map((st) => {
@@ -459,13 +459,13 @@ export default function AddItemScreen() {
                 return (
                   <button key={st} onClick={() => handleSubTypeSelect(st)}
                     className={`px-3.5 py-2 rounded-xl text-sm transition-all active:scale-95 border ${
-                      isSelected ? 'bg-[#C9A84C] border-[#C9A84C] text-[#0A1628] font-medium' : 'bg-[#111D2E] border-[#1A3A5C] text-white hover:border-[#C9A84C]/30'
+                      isSelected ? 'bg-[#D6B45C] border-[#D6B45C] text-[#081321] font-medium' : 'bg-[#101F32] border-[#1D344D] text-[#F7F5EF] hover:border-[#D6B45C]/30'
                     }`}
                   >{st}</button>
                 );
               })}
             </div>
-            {errors.subType && <p className="text-xs text-red-400 mt-1">{errors.subType}</p>}
+            {errors.subType && <p className="text-xs text-[#E98B8B] mt-1">{errors.subType}</p>}
 
             {showSubTypeCustom && (
               <div className="mt-3 animate-fade-in">
@@ -473,9 +473,9 @@ export default function AddItemScreen() {
                   onChange={(e) => { setSubTypeCustom(e.target.value); setErrors((p) => ({ ...p, subTypeCustom: '' })); }}
                   placeholder={isJewelCategory(category) ? 'Describe the item type...' : 'Describe the document type...'}
                   maxLength={50}
-                  className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white placeholder-[#8A94A6]/40 text-sm focus:border-[#C9A84C]/50 transition-colors"
+                  className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] placeholder-[#667487]/40 text-sm focus:border-[#D6B45C]/50 transition-colors"
                 />
-                {errors.subTypeCustom && <p className="text-xs text-red-400 mt-1">{errors.subTypeCustom}</p>}
+                {errors.subTypeCustom && <p className="text-xs text-[#E98B8B] mt-1">{errors.subTypeCustom}</p>}
               </div>
             )}
           </div>
@@ -484,54 +484,54 @@ export default function AddItemScreen() {
         {/* Other */}
         {showOtherInput && (
           <div className="mb-5 animate-fade-in">
-            <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">
-              Describe the category <span className="text-red-400">*</span>
+            <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">
+              Describe the category <span className="text-[#E98B8B]">*</span>
             </label>
             <input type="text" value={categoryCustom}
               onChange={(e) => { setCategoryCustom(e.target.value); setErrors((p) => ({ ...p, categoryCustom: '' })); }}
               placeholder="e.g., Antique coin, Watch..." maxLength={100}
-              className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white placeholder-[#8A94A6]/40 text-sm focus:border-[#C9A84C]/50 transition-colors"
+              className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] placeholder-[#667487]/40 text-sm focus:border-[#D6B45C]/50 transition-colors"
             />
-            {errors.categoryCustom && <p className="text-xs text-red-400 mt-1">{errors.categoryCustom}</p>}
+            {errors.categoryCustom && <p className="text-xs text-[#E98B8B] mt-1">{errors.categoryCustom}</p>}
           </div>
         )}
 
         {/* WEIGHT */}
         {showWeightSection && (
           <div className="mb-5 animate-fade-in">
-            <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-3 block">Weight / Quantity</label>
+            <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-3 block">Weight / Quantity</label>
             <div className="flex gap-3">
               <div className="flex-1">
                 <input type="text" inputMode="decimal" value={weightAmount}
                   onChange={(e) => handleWeightAmountChange(e.target.value)}
                   placeholder="e.g., 22.5" maxLength={8}
-                  className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white placeholder-[#8A94A6]/40 text-sm focus:border-[#C9A84C]/50 transition-colors"
+                  className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] placeholder-[#667487]/40 text-sm focus:border-[#D6B45C]/50 transition-colors"
                 />
               </div>
               <div className="w-28">
-                <label className="text-[10px] text-[#8A94A6] mb-1 block">Unit</label>
+                <label className="text-[10px] text-[#A6B2C2] mb-1 block">Unit</label>
                 <div className="flex flex-wrap gap-1.5">
                   {availableWeightUnits.map((unit) => (
                     <button key={unit} onClick={() => setWeightUnit(unit as WeightUnit)}
                       className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 border ${
-                        weightUnit === unit ? 'bg-[#C9A84C] border-[#C9A84C] text-[#0A1628]' : 'bg-[#111D2E] border-[#1A3A5C] text-white'
+                        weightUnit === unit ? 'bg-[#D6B45C] border-[#D6B45C] text-[#081321]' : 'bg-[#101F32] border-[#1D344D] text-[#F7F5EF]'
                       }`}
                     >{unit}</button>
                   ))}
                 </div>
               </div>
             </div>
-            {weightHint && <p className="text-xs text-[#8A94A6]/60 mt-2">{weightHint}</p>}
-            {!weightHint && <p className="text-xs text-[#8A94A6]/40 mt-2">e.g., 22.5 g &middot; 2 pcs</p>}
+            {weightHint && <p className="text-xs text-[#A6B2C2]/60 mt-2">{weightHint}</p>}
+            {!weightHint && <p className="text-xs text-[#A6B2C2]/40 mt-2">e.g., 22.5 g &middot; 2 pcs</p>}
 
             {showPieceCount && (
               <div className="mt-3 animate-fade-in">
-                <label className="text-[10px] text-[#8A94A6] mb-1 block">No. of Pieces</label>
+                <label className="text-[10px] text-[#A6B2C2] mb-1 block">No. of Pieces</label>
                 <input type="text" inputMode="numeric" value={pieceCount}
                   onChange={(e) => handlePieceCountChange(e.target.value)} placeholder="e.g., 2"
-                  className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white placeholder-[#8A94A6]/40 text-sm focus:border-[#C9A84C]/50 transition-colors"
+                  className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] placeholder-[#667487]/40 text-sm focus:border-[#D6B45C]/50 transition-colors"
                 />
-                {errors.pieceCount && <p className="text-xs text-red-400 mt-1">{errors.pieceCount}</p>}
+                {errors.pieceCount && <p className="text-xs text-[#E98B8B] mt-1">{errors.pieceCount}</p>}
               </div>
             )}
           </div>
@@ -539,42 +539,42 @@ export default function AddItemScreen() {
 
         {/* Description */}
         <div className="mb-5">
-          <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">Description</label>
+          <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">Description</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)}
             placeholder="e.g., 22kt gold chain with pendant, 15g" rows={3}
-            className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white placeholder-[#8A94A6]/40 text-sm focus:border-[#C9A84C]/50 transition-colors resize-none"
+            className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] placeholder-[#667487]/40 text-sm focus:border-[#D6B45C]/50 transition-colors resize-none"
           />
         </div>
 
         {/* Date */}
         <div className="mb-5">
-          <label className="text-xs text-[#8A94A6] uppercase tracking-wider mb-2 block">Date Added</label>
+          <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">Date Added</label>
           <div className="relative">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] text-white text-sm focus:border-[#C9A84C]/50 transition-colors appearance-none"
+              className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] text-sm focus:border-[#D6B45C]/50 transition-colors appearance-none"
             />
-            <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A94A6] pointer-events-none" />
+            <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A6B2C2] pointer-events-none" />
           </div>
         </div>
 
         {/* Photos */}
         <div className="mb-5">
           <div className="mb-2">
-            <span className="text-xs text-[#8A94A6] uppercase tracking-wider">Photos ({photos.length}/5)</span>
+            <span className="text-xs text-[#A6B2C2] uppercase tracking-wider">Photos ({photos.length}/5)</span>
           </div>
           <div className="flex gap-3 mb-3">
             <PhotoButton
               onClick={() => takePhoto(false)}
               icon={Camera}
               label="Take Photo"
-              color="text-[#C9A84C]"
+              color="text-[#D6B45C]"
               disabled={isPickingPhoto}
             />
             <PhotoButton
               onClick={() => pickFromGallery(false)}
               icon={ImageIcon}
               label="Gallery"
-              color="text-[#C9A84C]"
+              color="text-[#D6B45C]"
               disabled={isPickingPhoto}
             />
           </div>
@@ -585,11 +585,11 @@ export default function AddItemScreen() {
                   <img
                     src={photo}
                     alt={`Photo ${index + 1}`}
-                    className="w-20 h-20 rounded-xl object-cover border-2 border-[#C9A84C]/40 bg-[#111D2E]"
+                    className="w-20 h-20 rounded-xl object-cover border-2 border-[#D6B45C]/40 bg-[#101F32]"
                   />
                   <button onClick={() => removePhoto(index)}
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
-                  ><X className="w-3 h-3 text-white" /></button>
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[#D66A6A] flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                  ><X className="w-3 h-3 text-[#F7F5EF]" /></button>
                 </div>
               ))}
             </div>
@@ -599,18 +599,18 @@ export default function AddItemScreen() {
         {/* Bill Photos */}
         <div className="mb-5">
           <button onClick={() => setShowBillSection((v) => !v)}
-            className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#111D2E] border border-[#1A3A5C] active:bg-[#1A3A5C] active:scale-[0.98] transition-all"
+            className="w-full flex items-center gap-3 p-4 rounded-2xl bg-[#101F32] border border-[#1D344D] active:bg-[#1D344D] active:scale-[0.98] transition-all"
           >
-            <div className="w-10 h-10 rounded-xl bg-[#10B981]/15 flex items-center justify-center">
-              <Receipt className="w-5 h-5 text-[#10B981]" />
+            <div className="w-10 h-10 rounded-xl bg-[#123D32] flex items-center justify-center">
+              <Receipt className="w-5 h-5 text-[#5ED6A5]" />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-white">Bill / Certificate Photo</p>
-              <p className="text-xs text-[#8A94A6]">
+              <p className="text-sm font-medium text-[#F7F5EF]">Bill / Certificate Photo</p>
+              <p className="text-xs text-[#A6B2C2]">
                 {billPhotos.length > 0 ? `${billPhotos.length} attached` : 'Optional — tap to expand'}
               </p>
             </div>
-            {showBillSection ? <ChevronUp className="w-4 h-4 text-[#8A94A6]" /> : <ChevronDown className="w-4 h-4 text-[#8A94A6]" />}
+            {showBillSection ? <ChevronUp className="w-4 h-4 text-[#A6B2C2]" /> : <ChevronDown className="w-4 h-4 text-[#A6B2C2]" />}
           </button>
 
           {showBillSection && (
@@ -620,14 +620,14 @@ export default function AddItemScreen() {
                   onClick={() => takePhoto(true)}
                   icon={Camera}
                   label="Take Photo"
-                  color="text-[#10B981]"
+                  color="text-[#5ED6A5]"
                   disabled={isPickingPhoto}
                 />
                 <PhotoButton
                   onClick={() => pickFromGallery(true)}
                   icon={ImageIcon}
                   label="Gallery"
-                  color="text-[#10B981]"
+                  color="text-[#5ED6A5]"
                   disabled={isPickingPhoto}
                 />
               </div>
@@ -636,16 +636,16 @@ export default function AddItemScreen() {
                   {billPhotos.map((photo, index) => (
                     <div key={index} className="relative animate-scale-in" style={{ animationDelay: `${index * 50}ms` }}>
                       <img src={photo} alt={`Bill ${index + 1}`}
-                        className="w-20 h-20 rounded-xl object-cover border-2 border-[#10B981]/40 bg-[#111D2E]"
+                        className="w-20 h-20 rounded-xl object-cover border-2 border-[#36B37E]/40 bg-[#101F32]"
                       />
                       <button onClick={() => removeBillPhoto(index)}
-                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform"
-                      ><X className="w-3 h-3 text-white" /></button>
+                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[#D66A6A] flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                      ><X className="w-3 h-3 text-[#F7F5EF]" /></button>
                     </div>
                   ))}
                 </div>
               )}
-              <p className="text-xs text-[#8A94A6]/50 mt-2">{billPhotos.length}/3</p>
+              <p className="text-xs text-[#A6B2C2]/50 mt-2">{billPhotos.length}/3</p>
             </div>
           )}
         </div>
@@ -656,7 +656,7 @@ export default function AddItemScreen() {
             onClick={() => setInLocker((v) => !v)}
             className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-medium border transition-all active:scale-[0.98] ${
               inLocker
-                ? 'text-emerald-400 bg-emerald-500/5 border-emerald-500/20'
+                ? 'text-[#5ED6A5] bg-emerald-500/5 border-[#36B37E]'
                 : 'text-amber-400 bg-amber-500/5 border-amber-500/20'
             }`}
           >
@@ -674,7 +674,7 @@ export default function AddItemScreen() {
       {/* Save Error */}
       {saveError && (
         <div className="shrink-0 px-5 pb-3">
-          <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-[#3A2427] border border-red-500/30 text-[#E98B8B] text-xs">
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span>{saveError}</span>
           </div>
@@ -682,17 +682,17 @@ export default function AddItemScreen() {
       )}
 
       {/* Save Button */}
-      <div className="shrink-0 p-5 bg-gradient-to-t from-[#0A1628] via-[#0A1628] to-transparent z-10">
+      <div className="shrink-0 p-5 bg-gradient-to-t from-[#081321] via-[#081321] to-transparent z-10">
         <button onClick={handleSave} disabled={isSaving}
           className={`w-full py-4 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98] ${
             !isSaving
-              ? 'bg-[#C9A84C] text-[#0A1628] shadow-lg shadow-[#C9A84C]/20'
-              : 'bg-[#111D2E] text-[#8A94A6] border border-[#1A3A5C]'
+              ? 'bg-[#D6B45C] text-[#081321] shadow-lg shadow-[#D6B45C]/20'
+              : 'bg-[#101F32] text-[#A6B2C2] border border-[#1D344D]'
           }`}
         >
           {isSaving ? (
             <span className="flex items-center justify-center gap-2">
-              <span className="w-4 h-4 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+              <span className="w-4 h-4 border-2 border-[#D6B45C] border-t-transparent rounded-full animate-spin" />
               Saving...
             </span>
           ) : (

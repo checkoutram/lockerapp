@@ -66,17 +66,17 @@ export default function PhotoImage({ photoRef, alt, className = '', onError, onC
 
   if (loading) {
     return (
-      <div className={`bg-[#111D2E] rounded-xl flex items-center justify-center ${className}`}>
-        <div className="w-5 h-5 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+      <div className={`bg-[#101F32] rounded-xl flex items-center justify-center ${className}`}>
+        <div className="w-5 h-5 border-2 border-[#D6B45C] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   if (error || !src) {
     return (
-      <div className={`bg-[#111D2E] rounded-xl flex flex-col items-center justify-center gap-1 ${className}`}>
-        <ImageIcon className="w-6 h-6 text-[#8A94A6]/30" />
-        <span className="text-[10px] text-[#8A94A6]/40">No image</span>
+      <div className={`bg-[#101F32] rounded-xl flex flex-col items-center justify-center gap-1 ${className}`}>
+        <ImageIcon className="w-6 h-6 text-[#A6B2C2]/30" />
+        <span className="text-[10px] text-[#A6B2C2]/40">No image</span>
       </div>
     );
   }
