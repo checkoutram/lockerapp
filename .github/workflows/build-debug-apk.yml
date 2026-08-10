@@ -33,6 +33,7 @@ jobs:
       - name: Build Debug APK
         run: |
           cd android
+          chmod +x gradlew
           ./gradlew app:assembleDebug -x lint --no-daemon --stacktrace
 
       - name: Upload Debug APK
