@@ -94,8 +94,6 @@ jobs:
                   buildTypes {
                       release {
                           signingConfig signingConfigs.release
-                          minifyEnabled true
-                          proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
                       }
                   }
               }
@@ -112,6 +110,18 @@ jobs:
         with:
           name: vlocker-release-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload Deobfuscation Mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlocker-mapping-txt
+          path: android/app/build/outputs/mapping/release/mapping.txt
+
+      - name: Upload Native Debug Symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: vlocker-native-debug-symbols
+          path: android/app/build/outputs/native-debug-symbols/release/
 
       - name: Build Release APK (for testing)
         run: |

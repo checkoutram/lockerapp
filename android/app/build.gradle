@@ -18,9 +18,20 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+    ndkVersion "25.1.8937393"
+    packagingOptions {
+        jniLibs {
+            keepDebugSymbols += ["**/*.so"]
+        }
+    }
+    // Generate full debug symbols for native crash analysis
+    buildFeatures {
+        prefab false
     }
 }
 
