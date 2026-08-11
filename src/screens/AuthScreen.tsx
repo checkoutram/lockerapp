@@ -344,9 +344,16 @@ export default function AuthScreen() {
   const keypadNumbers = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
   const renderPinDots = (value: string) => (
-    <div className={`flex items-center gap-3 mb-6 ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
+    <div className={`flex items-center gap-4 mb-8 ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
       {[0, 1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className={i < value.length ? 'pin-dot-filled' : 'pin-dot-empty'} />
+        <div
+          key={i}
+          className={`w-4 h-4 rounded-full transition-all duration-200 ${
+            i < value.length
+              ? 'bg-[#D6B45C] shadow-[0_0_8px_rgba(214,180,92,0.5)]'
+              : 'bg-transparent border-2 border-[#D6B45C]/40'
+          }`}
+        />
       ))}
     </div>
   );
@@ -356,28 +363,28 @@ export default function AuthScreen() {
     onBackspace: () => void,
     showFingerprint: boolean = false
   ) => (
-    <div className="grid grid-cols-3 gap-3 w-full max-w-[280px] mb-6">
+    <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[300px] mb-6">
       {keypadNumbers.map((num) => (
         <button key={num} onClick={() => onInput(num)}
-          className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-xl font-semibold text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
+          className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
         >{num}</button>
       ))}
       {showFingerprint && biometricEnabled && Capacitor.isNativePlatform() ? (
         <button onClick={handleBiometric}
-          className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#D6B45C] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
+          className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-[#D6B45C] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
         >
           <Fingerprint className="w-6 h-6" />
         </button>
       ) : (
-        <div className="w-full aspect-square" />
+        <div className="w-[72px] h-[72px]" />
       )}
       <button onClick={() => onInput('0')}
-        className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-xl font-semibold text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
+        className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
       >0</button>
       <button onClick={onBackspace}
-        className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
+        className="w-[72px] h-[72px] mx-auto rounded-full bg-transparent border-2 border-[#D6B45C]/40 text-[#D6B45C] active:bg-[#D6B45C]/10 active:scale-95 transition-all flex items-center justify-center"
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" />
           <line x1="18" y1="9" x2="12" y2="15" /><line x1="12" y1="9" x2="18" y2="15" />
         </svg>
@@ -386,70 +393,55 @@ export default function AuthScreen() {
   );
 
   return (
-    <div className="h-full flex flex-col vault-gradient">
-      <div className="flex items-center justify-center pt-8 pb-4">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg overflow-hidden">
-            <img src="/vlocker-icon.png" alt={APP_NAME} className="w-full h-full object-contain" />
-          </div>
-          <span className="text-sm text-[#D6B45C] font-medium">
-            {APP_NAME}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col items-center px-8">
+    <div className="h-full w-full bg-[#050A12] flex flex-col">
+      <div className="flex-1 flex flex-col items-center px-8 pt-12">
         {/* Icon */}
-        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#D6B45C]/20 to-[#D6B45C]/5 border border-[#D6B45C]/30 flex items-center justify-center mb-4 gold-border-glow overflow-hidden">
-          <img src="/vlocker-icon.png" alt={APP_NAME} className="w-16 h-16 object-contain" />
+        <div className="w-16 h-16 rounded-2xl bg-[#D6B45C]/10 flex items-center justify-center mb-4">
+          <img src="/vlocker-icon.png" alt={APP_NAME} className="w-12 h-12 object-contain" />
         </div>
-
-        <p className="text-xs text-[#D6B45C]/60 mb-1 tracking-wide font-medium">
-          Know what's inside your locker
-        </p>
 
         {forgotStep === 'none' ? (
           <>
-            <h2 className="text-xl font-bold text-[#F7F5EF] mb-2">
-              Enter PIN
+            <h2 className="text-2xl font-bold text-[#F7F5EF] mb-2">
+              Enter Passcode
             </h2>
-            <p className="text-sm text-[#A6B2C2] text-center mb-8">
-              Unlock your locker
+            <p className="text-sm text-[#A6B2C2]/70 text-center mb-8 max-w-[260px]">
+              This is the code you'll use to unlock your Vlocker. Kept it safe
             </p>
           </>
         ) : forgotStep === 'verifyQuestions' ? (
           <>
-            <h2 className="text-xl font-bold text-[#F7F5EF] mb-2">
+            <h2 className="text-2xl font-bold text-[#F7F5EF] mb-2">
               Verify Identity
             </h2>
-            <p className="text-sm text-[#A6B2C2] text-center mb-6">
+            <p className="text-sm text-[#A6B2C2]/70 text-center mb-6 max-w-[260px]">
               Answer your security questions to reset PIN
             </p>
           </>
         ) : forgotStep === 'createPin' ? (
           <>
-            <h2 className="text-xl font-bold text-[#F7F5EF] mb-2">
+            <h2 className="text-2xl font-bold text-[#F7F5EF] mb-2">
               Create New PIN
             </h2>
-            <p className="text-sm text-[#A6B2C2] text-center mb-8">
+            <p className="text-sm text-[#A6B2C2]/70 text-center mb-8 max-w-[260px]">
               Set a new 4-6 digit PIN
             </p>
           </>
         ) : forgotStep === 'confirmPin' ? (
           <>
-            <h2 className="text-xl font-bold text-[#F7F5EF] mb-2">
+            <h2 className="text-2xl font-bold text-[#F7F5EF] mb-2">
               Confirm New PIN
             </h2>
-            <p className="text-sm text-[#A6B2C2] text-center mb-8">
+            <p className="text-sm text-[#A6B2C2]/70 text-center mb-8 max-w-[260px]">
               Re-enter your new PIN
             </p>
           </>
         ) : (
           <>
-            <h2 className="text-xl font-bold text-[#F7F5EF] mb-2">
+            <h2 className="text-2xl font-bold text-[#F7F5EF] mb-2">
               Reset PIN
             </h2>
-            <p className="text-sm text-[#A6B2C2] text-center mb-6">
+            <p className="text-sm text-[#A6B2C2]/70 text-center mb-6 max-w-[260px]">
               No security questions found
             </p>
           </>
@@ -475,11 +467,7 @@ export default function AuthScreen() {
               </div>
             ) : (
               <>
-                <div className={`flex items-center gap-3 mb-4 ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
-                  {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className={i < pin.length ? 'pin-dot-filled' : 'pin-dot-empty'} />
-                  ))}
-                </div>
+                {renderPinDots(pin)}
 
                 {renderKeypad(handlePinInput, handleBackspace, true)}
               </>
@@ -487,7 +475,7 @@ export default function AuthScreen() {
 
             {!isLocked && (
               <button onClick={handleStartForgot}
-                className="text-sm text-[#A6B2C2] hover:text-[#D6B45C] transition-colors mt-2"
+                className="text-sm text-[#A6B2C2]/70 hover:text-[#D6B45C] transition-colors mt-4"
               >
                 Forgot PIN?
               </button>
@@ -512,7 +500,7 @@ export default function AuthScreen() {
                     setError('');
                   }}
                   placeholder="Your answer"
-                  className="w-full p-3 rounded-xl bg-[#101F32] border border-[#1D344D] text-sm text-[#F7F5EF] placeholder:text-[#A6B2C2]/50 focus:border-[#D6B45C]/50 focus:outline-none transition-colors"
+                  className="w-full p-3.5 rounded-xl bg-[#050A12] border border-[#1D344D]/50 text-sm text-[#F7F5EF] placeholder:text-[#667487] focus:border-[#D6B45C]/50 focus:outline-none transition-colors"
                 />
               </div>
             ))}
@@ -572,8 +560,11 @@ export default function AuthScreen() {
           </div>
         ) : null}
 
-        {/* Privacy Note */}
-        <div className="flex items-center gap-1.5 text-[10px] text-[#5ED6A5]/80 bg-[#123D32] px-3 py-1.5 rounded-full border border-[#36B37E] mt-6">
+      </div>
+
+      {/* Privacy Note */}
+      <div className="pb-6 pt-2 flex justify-center">
+        <div className="flex items-center gap-1.5 text-[10px] text-[#5ED6A5]/80 bg-[#123D32]/60 px-3 py-1.5 rounded-full border border-[#36B37E]/30">
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
           <span>Your data stays on your device - private and secure</span>
         </div>

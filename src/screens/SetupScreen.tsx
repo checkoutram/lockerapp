@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowRight, Shield, ChevronDown, Check } from 'lucide-react';
+import { Shield, ChevronDown, Check } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { SecureStore, saveSecretQuestions } from '@/utils/storage';
 import { digestStringAsync } from '@/utils/crypto';
@@ -171,32 +171,35 @@ export default function SetupScreen() {
   const keypadNumbers = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
   const renderPinDots = () => (
-    <div className={`flex items-center gap-3 mb-6 ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
+    <div className={`flex items-center gap-4 mb-8 ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
       {[0, 1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className={i < (step === 'create' ? createPin.length : confirmPin.length) ? 'pin-dot-filled' : 'pin-dot-empty'} />
+        <div
+          key={i}
+          className={`w-4 h-4 rounded-full transition-all duration-200 ${
+            i < (step === 'create' ? createPin.length : confirmPin.length)
+              ? 'bg-[#D6B45C] shadow-[0_0_8px_rgba(214,180,92,0.5)]'
+              : 'bg-transparent border-2 border-[#D6B45C]/40'
+          }`}
+        />
       ))}
     </div>
   );
 
   const renderKeypad = () => (
-    <div className="grid grid-cols-3 gap-3 w-full max-w-[280px] mb-8">
+    <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[300px] mb-6">
       {keypadNumbers.map((num) => (
         <button key={num} onClick={() => handlePinInput(num)}
-          className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-xl font-semibold text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
+          className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
         >{num}</button>
       ))}
-      <button onClick={handleNext}
-        className="w-full aspect-square rounded-2xl bg-[#D6B45C] border border-[#D6B45C] text-[#081321] active:bg-[#B8983F] active:scale-95 transition-all flex items-center justify-center"
-      >
-        <ArrowRight className="w-6 h-6" />
-      </button>
+      <div className="w-[72px] h-[72px]" />
       <button onClick={() => handlePinInput('0')}
-        className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-xl font-semibold text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
+        className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
       >0</button>
       <button onClick={handleBackspace}
-        className="w-full aspect-square rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center"
+        className="w-[72px] h-[72px] mx-auto rounded-full bg-transparent border-2 border-[#D6B45C]/40 text-[#D6B45C] active:bg-[#D6B45C]/10 active:scale-95 transition-all flex items-center justify-center"
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" />
           <line x1="18" y1="9" x2="12" y2="15" /><line x1="12" y1="9" x2="18" y2="15" />
         </svg>
@@ -205,27 +208,22 @@ export default function SetupScreen() {
   );
 
   return (
-    <div className="h-full flex flex-col items-center justify-center vault-gradient relative overflow-hidden">
-      {/* Background decorative elements */}
-      <div className="absolute inset-0 opacity-20">
-        <div className="absolute top-1/4 right-1/4 w-64 h-64 rounded-full bg-[#D6B45C] blur-[100px]" />
-        <div className="absolute bottom-1/4 left-1/4 w-48 h-48 rounded-full bg-[#1D344D] blur-[80px]" />
-      </div>
-
-      <div className={`relative z-10 flex flex-col items-center px-6 transition-all duration-500 ${fadeOut ? 'opacity-0 scale-95' : 'opacity-100'} w-full max-w-md`}>
+    <div className={`h-full w-full bg-[#050A12] flex flex-col relative transition-all duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}>
+      <div className="flex-1 flex flex-col items-center px-6 pt-12 w-full max-w-md mx-auto">
         {/* Icon */}
-        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#D6B45C]/20 to-[#D6B45C]/5 border border-[#D6B45C]/30 flex items-center justify-center mb-5 gold-border-glow overflow-hidden">
-          <img src="/vlocker-icon.png" alt={APP_NAME} className="w-16 h-16 object-contain" />
+        <div className="w-16 h-16 rounded-2xl bg-[#D6B45C]/10 flex items-center justify-center mb-4">
+          <img src="/vlocker-icon.png" alt={APP_NAME} className="w-12 h-12 object-contain" />
         </div>
 
-        <h2 className="text-2xl font-bold text-[#F7F5EF] mb-1">
-          {step === 'create' ? 'Secure Your Locker' : step === 'confirm' ? 'Confirm PIN' : 'Recovery Questions'}
+        <h2 className="text-2xl font-bold text-[#F7F5EF] mb-2">
+          {step === 'create' ? 'Set Passcode' : step === 'confirm' ? 'Confirm Passcode' : 'Recovery Questions'}
         </h2>
-        <p className="text-sm text-[#D6B45C]/70 mb-1 font-medium tracking-wide">
-          Know what's inside your locker
-        </p>
-        <p className="text-sm text-[#A6B2C2] mb-8 text-center">
-          {step === 'create' ? 'Create a 4-6 digit PIN to protect your items' : step === 'confirm' ? 'Re-enter your PIN to confirm' : 'Set 3 questions to recover your PIN'}
+        <p className="text-sm text-[#A6B2C2]/70 mb-1 text-center max-w-[260px]">
+          {step === 'create'
+            ? "This is the code you'll use to unlock your Vlocker. Kept it safe"
+            : step === 'confirm'
+            ? 'Re-enter your passcode to confirm'
+            : 'Set 3 questions to recover your passcode'}
         </p>
 
         {step === 'secretQuestions' ? (
@@ -243,13 +241,13 @@ export default function SetupScreen() {
                 <div className="relative" ref={(el) => { dropdownRefs.current[idx] = el; }}>
                   <button
                     onClick={() => setShowDropdown(showDropdown === idx ? null : idx)}
-                    className="w-full flex items-center justify-between p-3 rounded-xl bg-[#101F32] border border-[#1D344D] text-sm text-[#F7F5EF] text-left active:border-[#D6B45C]/50 transition-colors"
+                    className="w-full flex items-center justify-between p-3.5 rounded-xl bg-[#050A12] border border-[#1D344D]/50 text-sm text-[#F7F5EF] text-left active:border-[#D6B45C]/50 transition-colors"
                   >
                     <span className="pr-2 leading-snug">{SECRET_QUESTIONS[selectedQuestions[idx]]}</span>
                     <ChevronDown className={`w-4 h-4 text-[#A6B2C2] flex-shrink-0 transition-transform ${showDropdown === idx ? 'rotate-180' : ''}`} />
                   </button>
                   {showDropdown === idx && (
-                    <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl bg-[#101F32] border border-[#1D344D] shadow-lg">
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl bg-[#0B1525] border border-[#1D344D]/50 shadow-lg">
                       {SECRET_QUESTIONS.map((q, qIdx) => {
                         const isSelected = selectedQuestions[idx] === qIdx;
                         const isUsed = selectedQuestions.includes(qIdx) && selectedQuestions[idx] !== qIdx;
@@ -277,7 +275,7 @@ export default function SetupScreen() {
                   value={answers[idx]}
                   onChange={(e) => handleAnswerChange(idx, e.target.value)}
                   placeholder={`Answer for question ${idx + 1}`}
-                  className="w-full p-3 rounded-xl bg-[#101F32] border border-[#1D344D] text-sm text-[#F7F5EF] placeholder:text-[#A6B2C2]/50 focus:border-[#D6B45C]/50 focus:outline-none transition-colors"
+                  className="w-full p-3.5 rounded-xl bg-[#050A12] border border-[#1D344D]/50 text-sm text-[#F7F5EF] placeholder:text-[#667487] focus:border-[#D6B45C]/50 focus:outline-none transition-colors"
                 />
               </div>
             ))}
@@ -288,7 +286,7 @@ export default function SetupScreen() {
 
             <button
               onClick={handleSaveSecretQuestions}
-              className="w-full py-3.5 rounded-2xl bg-[#D6B45C] text-[#081321] font-semibold text-sm active:bg-[#B8983F] active:scale-95 transition-all mt-2"
+              className="w-full py-4 rounded-2xl bg-[#D6B45C] text-[#081321] font-semibold text-sm active:bg-[#B8983F] active:scale-95 transition-all mt-2"
             >
               Save & Secure My Locker
             </button>
@@ -305,8 +303,11 @@ export default function SetupScreen() {
           </>
         )}
 
-        {/* Privacy Note */}
-        <div className="flex items-center gap-1.5 text-[10px] text-[#5ED6A5]/80 bg-[#123D32] px-3 py-1.5 rounded-full border border-[#36B37E] mb-4">
+      </div>
+
+      {/* Privacy Note */}
+      <div className="pb-6 pt-2 flex justify-center">
+        <div className="flex items-center gap-1.5 text-[10px] text-[#5ED6A5]/80 bg-[#123D32]/60 px-3 py-1.5 rounded-full border border-[#36B37E]/30">
           <Shield className="w-3 h-3" />
           <span>Your data stays on your device - private and secure</span>
         </div>
