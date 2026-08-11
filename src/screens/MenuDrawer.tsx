@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { X, Settings, Download, Trash2, LogOut, Shield, ChevronRight } from 'lucide-react';
-import { exportData, wipeAllData } from '../utils/storage';
+import { useState, useRef } from 'react';
+import { X, Settings, Download, Upload, Trash2, LogOut, Shield, ChevronRight, CheckCircle } from 'lucide-react';
+import { exportFullBackup, importFullBackup, wipeAllData } from '../utils/storage';
 import { useApp } from '@/context/AppContext';
 
 interface MenuDrawerProps {
@@ -10,20 +10,62 @@ interface MenuDrawerProps {
 export function MenuDrawer({ onClose }: MenuDrawerProps) {
   const { navigate } = useApp();
   const [showWipeConfirm, setShowWipeConfirm] = useState(false);
+  const [showImportResult, setShowImportResult] = useState<{
+    success: boolean;
+    message: string;
+    stats?: { lockers: number; items: number; photos: number };
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = async () => {
     try {
-      const data = await exportData();
+      const data = await exportFullBackup();
       const blob = new Blob([data], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `vlocker-backup-${new Date().toISOString().split('T')[0]}.json`;
+      const dateStr = new Date().toISOString().split('T')[0];
+      a.download = `vlocker-backup-${dateStr}.vlocker`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
       // silent
     }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const result = await importFullBackup(text);
+
+      if (result.success) {
+        setShowImportResult({
+          success: true,
+          message: 'Backup restored successfully!',
+          stats: result.stats,
+        });
+      } else {
+        setShowImportResult({
+          success: false,
+          message: result.error || 'Import failed.',
+        });
+      }
+    } catch {
+      setShowImportResult({
+        success: false,
+        message: 'Could not read the selected file.',
+      });
+    }
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleWipe = async () => {
@@ -34,7 +76,8 @@ export function MenuDrawer({ onClose }: MenuDrawerProps) {
 
   const menuItems = [
     { icon: Settings, label: 'Settings', onClick: () => { onClose(); navigate('settings'); } },
-    { icon: Download, label: 'Export Data', onClick: handleExport },
+    { icon: Download, label: 'Export Backup', onClick: handleExport },
+    { icon: Upload, label: 'Import Backup', onClick: handleImportClick },
     { icon: Trash2, label: 'Delete All Data', onClick: () => setShowWipeConfirm(true), danger: true },
     { icon: LogOut, label: 'Log Out', onClick: () => { onClose(); navigate('auth'); } },
   ];
@@ -84,6 +127,15 @@ export function MenuDrawer({ onClose }: MenuDrawerProps) {
         </div>
       </div>
 
+      {/* Hidden file input for Import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".vlocker,.json"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+
       {/* Wipe Confirmation Modal */}
       {showWipeConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-6">
@@ -106,6 +158,59 @@ export function MenuDrawer({ onClose }: MenuDrawerProps) {
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Result Modal */}
+      {showImportResult && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-6">
+          <div className="bg-[#101F32] rounded-2xl p-6 w-full max-w-sm border border-[#1D344D]/50 text-center">
+            {showImportResult.success ? (
+              <>
+                <div className="w-14 h-14 rounded-full bg-[#5ED6A5]/10 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-7 h-7 text-[#5ED6A5]" />
+                </div>
+                <h3 className="text-lg font-bold text-[#F7F5EF] mb-2">{showImportResult.message}</h3>
+                {showImportResult.stats && (
+                  <div className="space-y-1.5 mb-6">
+                    <p className="text-sm text-[#A6B2C2]">
+                      <span className="text-[#D6B45C] font-semibold">{showImportResult.stats.lockers}</span> lockers
+                    </p>
+                    <p className="text-sm text-[#A6B2C2]">
+                      <span className="text-[#D6B45C] font-semibold">{showImportResult.stats.items}</span> items
+                    </p>
+                    <p className="text-sm text-[#A6B2C2]">
+                      <span className="text-[#D6B45C] font-semibold">{showImportResult.stats.photos}</span> photos
+                    </p>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    setShowImportResult(null);
+                    onClose();
+                    navigate('lockerList');
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-[#D6B45C] text-[#081321] font-semibold text-sm"
+                >
+                  Done
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-14 h-14 rounded-full bg-[#E98B8B]/10 flex items-center justify-center mx-auto mb-4">
+                  <X className="w-7 h-7 text-[#E98B8B]" />
+                </div>
+                <h3 className="text-lg font-bold text-[#F7F5EF] mb-2">Import Failed</h3>
+                <p className="text-sm text-[#A6B2C2] mb-6">{showImportResult.message}</p>
+                <button
+                  onClick={() => setShowImportResult(null)}
+                  className="w-full py-3.5 rounded-xl bg-[#14263B] text-[#F7F5EF] font-semibold text-sm"
+                >
+                  Close
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

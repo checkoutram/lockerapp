@@ -1,7 +1,7 @@
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
 import type { LockerItem, SecretQuestions, Locker } from '@/types';
-import { savePhoto, deletePhoto } from './photoStorage';
+import { savePhoto, deletePhoto, getPhotoUrl } from './photoStorage';
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -258,6 +258,167 @@ export async function hasSecretQuestions(): Promise<boolean> {
 export async function exportData(): Promise<string> {
   const items = await getItems();
   return JSON.stringify(items, null, 2);
+}
+
+// ---- FULL BACKUP / RESTORE (includes photos) ----
+
+export interface VLockerBackup {
+  version: string;
+  exportedAt: string;
+  appVersion: string;
+  lockers: Locker[];
+  items: LockerItem[];
+  secretQuestions: SecretQuestions | null;
+  settings: Record<string, unknown>;
+}
+
+/**
+ * Export ALL app data including photos embedded as base64.
+ * Photos stored as native file paths are read and converted to data URIs.
+ */
+export async function exportFullBackup(): Promise<string> {
+  const lockers = await getLockers();
+  const items = await getItems();
+  const secretQuestions = await getSecretQuestions();
+  const settings = await getSettings();
+
+  // Deep clone items so we don't mutate originals
+  const exportItems: LockerItem[] = JSON.parse(JSON.stringify(items));
+
+  // Convert all photo refs to embedded base64 data URIs
+  for (const item of exportItems) {
+    // Item photos
+    if (item.photos && item.photos.length > 0) {
+      const embeddedPhotos: string[] = [];
+      for (const photoRef of item.photos) {
+        if (photoRef.startsWith('file://')) {
+          const dataUri = await getPhotoUrl(photoRef);
+          if (dataUri) embeddedPhotos.push(dataUri);
+        } else if (photoRef.startsWith('data:')) {
+          embeddedPhotos.push(photoRef);
+        }
+      }
+      item.photos = embeddedPhotos;
+    }
+
+    // Bill photos
+    if (item.billPhotos && item.billPhotos.length > 0) {
+      const embeddedBillPhotos: string[] = [];
+      for (const photoRef of item.billPhotos) {
+        if (photoRef.startsWith('file://')) {
+          const dataUri = await getPhotoUrl(photoRef);
+          if (dataUri) embeddedBillPhotos.push(dataUri);
+        } else if (photoRef.startsWith('data:')) {
+          embeddedBillPhotos.push(photoRef);
+        }
+      }
+      item.billPhotos = embeddedBillPhotos;
+    }
+  }
+
+  const backup: VLockerBackup = {
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    appVersion: '3.0.0',
+    lockers,
+    items: exportItems,
+    secretQuestions,
+    settings,
+  };
+
+  return JSON.stringify(backup);
+}
+
+/**
+ * Import a full backup. Restores lockers, items (with photos), secret questions, and settings.
+ * Photos are saved back to native file storage if running on a native device.
+ * Existing data is wiped first.
+ */
+export async function importFullBackup(jsonString: string): Promise<{ success: boolean; error?: string; stats?: { lockers: number; items: number; photos: number } }> {
+  try {
+    const backup = JSON.parse(jsonString) as Partial<VLockerBackup>;
+
+    // Validate structure
+    if (!backup.version || !Array.isArray(backup.lockers) || !Array.isArray(backup.items)) {
+      return { success: false, error: 'Invalid backup file. Missing required data.' };
+    }
+
+    // Wipe existing data first
+    await clearAllData();
+
+    // Clean up any existing native photo files
+    if (isNative) {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      try {
+        await Filesystem.rmdir({ path: 'photos', directory: Directory.Data, recursive: true });
+      } catch {
+        // Directory may not exist
+      }
+    }
+
+    // Restore lockers
+    if (backup.lockers.length > 0) {
+      await saveLockers(backup.lockers);
+    }
+
+    // Restore items — re-save photos to native storage
+    let photoCount = 0;
+    const restoredItems: LockerItem[] = JSON.parse(JSON.stringify(backup.items));
+
+    for (const item of restoredItems) {
+      // Restore item photos
+      if (item.photos && item.photos.length > 0) {
+        const newPhotoPaths: string[] = [];
+        for (let i = 0; i < item.photos.length; i++) {
+          const photoData = item.photos[i];
+          if (photoData.startsWith('data:')) {
+            const savedPath = await savePhoto(photoData, item.id, i);
+            newPhotoPaths.push(savedPath);
+            photoCount++;
+          }
+        }
+        item.photos = newPhotoPaths;
+      }
+
+      // Restore bill photos
+      if (item.billPhotos && item.billPhotos.length > 0) {
+        const newBillPaths: string[] = [];
+        for (let i = 0; i < item.billPhotos.length; i++) {
+          const photoData = item.billPhotos[i];
+          if (photoData.startsWith('data:')) {
+            const savedPath = await savePhoto(photoData, item.id, i + 100);
+            newBillPaths.push(savedPath);
+            photoCount++;
+          }
+        }
+        item.billPhotos = newBillPaths;
+      }
+    }
+
+    await setItems(restoredItems);
+
+    // Restore secret questions
+    if (backup.secretQuestions) {
+      await saveSecretQuestions(backup.secretQuestions);
+    }
+
+    // Restore settings (but don't overwrite PIN-related flags)
+    if (backup.settings) {
+      const { pin, ...safeSettings } = backup.settings as Record<string, unknown>;
+      await saveSettings(safeSettings);
+    }
+
+    return {
+      success: true,
+      stats: {
+        lockers: backup.lockers.length,
+        items: backup.items.length,
+        photos: photoCount,
+      },
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to import backup' };
+  }
 }
 
 // ---- SETTINGS ----
