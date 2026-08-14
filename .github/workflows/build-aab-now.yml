@@ -86,6 +86,11 @@ jobs:
           echo "=== Version ==="
           grep -E "versionCode|versionName" build.gradle | head -2
 
+      - name: Clean build
+        run: |
+          cd android
+          bash gradlew clean --no-daemon
+
       - name: Build Release AAB
         run: |
           cd android
