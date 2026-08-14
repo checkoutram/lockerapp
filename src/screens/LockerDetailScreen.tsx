@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
-  ChevronLeft, Menu, Search, Plus, Calendar, Trash2,
+  ChevronLeft, Search, Plus, Calendar, Trash2,
 } from 'lucide-react';
 import { getItems, getLockers, deleteItem } from '../utils/storage';
 import PhotoImage from '../components/PhotoImage';
