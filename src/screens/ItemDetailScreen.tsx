@@ -42,7 +42,7 @@ export default function ItemDetailScreen() {
     const updated = loadedItems.map((i: LockerItem) =>
       i.id === item.id ? { ...i, inLocker: !i.inLocker } : i
     );
-    await setItems(updated);
+    await setContextItems(updated);
     setContextItems(updated);
     setItem({ ...item, inLocker: !item.inLocker });
   };
