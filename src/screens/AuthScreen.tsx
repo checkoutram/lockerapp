@@ -43,7 +43,13 @@ export default function AuthScreen() {
         AsyncStorage.removeItem('just_logged_out');
       }
     });
-  }, []);
+    // Redirect to setup if no PIN exists
+    SecureStore.getItemAsync('pin').then((storedPin) => {
+      if (!storedPin) {
+        navigate('setup');
+      }
+    });
+  }, [navigate]);
 
   useEffect(() => {
     const checkLockout = async () => {
@@ -84,7 +90,7 @@ export default function AuthScreen() {
 
   const doSubmit = useCallback(async (pinToCheck: string) => {
     if (submittingRef.current) return;
-    if (pinToCheck.length < 4) return;
+    if (pinToCheck.length !== 6) return;
     submittingRef.current = true;
 
     const storedHash = await SecureStore.getItemAsync('pin');
@@ -118,7 +124,7 @@ export default function AuthScreen() {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
-    if (currentPin.length >= 4) {
+    if (currentPin.length === 6) {
       debounceTimerRef.current = setTimeout(() => {
         doSubmit(currentPin);
       }, AUTO_SUBMIT_DELAY);
@@ -182,6 +188,8 @@ export default function AuthScreen() {
       const msg = err?.message || '';
       if (msg.includes('cancel') || msg.includes('dismiss') || msg.includes('user')) {
         setError('Biometric cancelled.');
+      } else if (msg.includes('not available') || msg.includes('not implemented') || msg.includes('plugin')) {
+        setError('Biometric not available. Use PIN.');
       } else {
         setError('Biometric failed. Use PIN.');
       }
@@ -190,16 +198,9 @@ export default function AuthScreen() {
     }
   }, [setAuthenticated, navigate]);
 
-  // Auto-trigger biometric after 1.5s delay, but NOT after logout
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    const timer = setTimeout(() => {
-      if (biometricEnabled && !justLoggedOutRef.current && !isLocked && !submittingRef.current) {
-        handleBiometric();
-      }
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [biometricEnabled, isLocked, handleBiometric]);
+  // Auto-trigger biometric removed — user must tap fingerprint button
+  // Native biometric plugin requires compilation into APK
+  // The fingerprint button below handles manual biometric auth
 
   useEffect(() => {
     return () => {
@@ -278,7 +279,7 @@ export default function AuthScreen() {
 
   // Auto-advance to confirm PIN step
   useEffect(() => {
-    if (forgotStep === 'createPin' && newPinRef.current.length >= 4) {
+    if (forgotStep === 'createPin' && newPinRef.current.length === 6) {
       const timer = setTimeout(() => {
         setForgotStep('confirmPin');
       }, 500);
@@ -288,7 +289,7 @@ export default function AuthScreen() {
 
   // Auto-submit when confirm PIN matches
   useEffect(() => {
-    if (forgotStep === 'confirmPin' && confirmNewPinRef.current.length >= 4 && confirmNewPinRef.current === newPinRef.current) {
+    if (forgotStep === 'confirmPin' && confirmNewPinRef.current.length === 6 && confirmNewPinRef.current === newPinRef.current) {
       handleSaveNewPin();
     }
   }, [confirmNewPin, forgotStep]);
@@ -302,8 +303,8 @@ export default function AuthScreen() {
       setTimeout(() => setShake(false), 500);
       return;
     }
-    if (newPinRef.current.length < 4) {
-      setError('PIN must be at least 4 digits');
+    if (newPinRef.current.length !== 6) {
+      setError('PIN must be exactly 6 digits');
       return;
     }
 
@@ -369,15 +370,8 @@ export default function AuthScreen() {
           className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
         >{num}</button>
       ))}
-      {showFingerprint && biometricEnabled && Capacitor.isNativePlatform() ? (
-        <button onClick={handleBiometric}
-          className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-[#D6B45C] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
-        >
-          <Fingerprint className="w-6 h-6" />
-        </button>
-      ) : (
-        <div className="w-[72px] h-[72px]" />
-      )}
+      {/* Fingerprint button hidden — native plugin not in APK */}
+      <div className="w-[72px] h-[72px]" />
       <button onClick={() => onInput('0')}
         className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
       >0</button>
@@ -424,7 +418,7 @@ export default function AuthScreen() {
               Create New PIN
             </h2>
             <p className="text-sm text-[#A6B2C2]/70 text-center mb-8 max-w-[260px]">
-              Set a new 4-6 digit PIN
+              Set a new 6-digit PIN
             </p>
           </>
         ) : forgotStep === 'confirmPin' ? (

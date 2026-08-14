@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { X, Settings, Download, Upload, Trash2, LogOut, Shield, ChevronRight, CheckCircle } from 'lucide-react';
+import { X, Home, Settings, Download, Upload, Trash2, LogOut, Shield, ChevronRight, CheckCircle, Building2 } from 'lucide-react';
 import { exportFullBackup, importFullBackup, wipeAllData } from '../utils/storage';
 import { useApp } from '@/context/AppContext';
 
@@ -75,7 +75,9 @@ export function MenuDrawer({ onClose }: MenuDrawerProps) {
   };
 
   const menuItems = [
+    { icon: Home, label: 'Home', onClick: () => { onClose(); navigate('lockerList'); } },
     { icon: Settings, label: 'Settings', onClick: () => { onClose(); navigate('settings'); } },
+    { icon: Building2, label: 'Manage Lockers', onClick: () => { onClose(); navigate('manageLockers'); } },
     { icon: Download, label: 'Export Backup', onClick: handleExport },
     { icon: Upload, label: 'Import Backup', onClick: handleImportClick },
     { icon: Trash2, label: 'Delete All Data', onClick: () => setShowWipeConfirm(true), danger: true },

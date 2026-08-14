@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import type { ScreenName, Locker, LockerItem, AppAlert } from '@/types';
-import { SecureStore, setSessionActive, AsyncStorage } from '@/utils/storage';
+import { SecureStore, setSessionActive, AsyncStorage, getLockers, getItems, runV3Migration } from '@/utils/storage';
 
 interface AppContextType {
   // Navigation & auth (original)
@@ -23,6 +23,8 @@ interface AppContextType {
   selectedLockerId: string | null;
   setSelectedLockerId: React.Dispatch<React.SetStateAction<string | null>>;
   screenData: any;
+  refreshData: () => Promise<void>;
+  dataLoaded: boolean;
 
   // Alerts (new)
   alerts: AppAlert[];
@@ -46,6 +48,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedLockerId, setSelectedLockerId] = useState<string | null>(null);
   const [screenData, setScreenData] = useState<any>(null);
   const [alerts, setAlerts] = useState<AppAlert[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  const refreshData = useCallback(async () => {
+    try {
+      const storedLockers = await getLockers();
+      const storedItems = await getItems();
+      setLockers(storedLockers);
+      setItems(storedItems);
+      setDataLoaded(true);
+    } catch (err) {
+      console.error('[AppContext] Failed to load data:', err);
+    }
+  }, []);
 
   const checkPinExists = useCallback(async () => {
     const pin = await SecureStore.getItemAsync('pin');
@@ -56,9 +71,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const init = async () => {
       await checkPinExists();
       setIsAuthenticated(false);
+      await runV3Migration();
+      await refreshData();
     };
     init();
-  }, [checkPinExists]);
+  }, [checkPinExists, refreshData]);
 
   const refreshSession = useCallback(async () => {
     await setSessionActive(true);
@@ -96,7 +113,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (typeof data === 'string') {
         setSelectedItemId(data);
       } else if (typeof data === 'object' && data !== null) {
-        setScreenData(data);
+        // Merge with existing screenData so parent context (e.g. lockerId) is preserved
+        setScreenData((prev: any) => ({ ...prev, ...data }));
         if (data.itemId) setSelectedItemId(data.itemId);
         if (data.lockerId) setSelectedLockerId(data.lockerId);
       }
@@ -155,6 +173,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         selectedLockerId,
         setSelectedLockerId,
         screenData,
+        refreshData,
+        dataLoaded,
         alerts,
         showAlert,
         dismissAlert,

@@ -1,4 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { AppProvider, useApp } from '@/context/AppContext';
 import { X, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import SplashScreen from '@/screens/SplashScreen';
@@ -41,7 +43,8 @@ function ScreenRouter() {
 }
 
 function AppStateMonitor() {
-  const { isAuthenticated, setAuthenticated, navigate, screen } = useApp();
+  const { isAuthenticated, setAuthenticated, navigate, screen, goBack } = useApp();
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   useEffect(() => {
     let hiddenTime: number | null = null;
@@ -63,7 +66,73 @@ function AppStateMonitor() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isAuthenticated, setAuthenticated, navigate, screen]);
 
-  return null;
+  // Hardware back button handler
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const handleBackButton = () => {
+      if (showExitConfirm) {
+        setShowExitConfirm(false);
+        return;
+      }
+
+      switch (screen) {
+        case 'lockerList':
+        case 'home':
+          setShowExitConfirm(true);
+          break;
+        case 'lockerDetail':
+          navigate('lockerList');
+          break;
+        case 'itemDetail':
+        case 'addItem':
+        case 'settings':
+        case 'manageLockers':
+          goBack();
+          break;
+        default:
+          // For auth, setup, splash - let system handle it
+          break;
+      }
+    };
+
+    const listener = CapacitorApp.addListener('backButton', handleBackButton);
+    return () => {
+      listener.then(l => l.remove());
+    };
+  }, [screen, navigate, goBack, showExitConfirm]);
+
+  const handleExitApp = useCallback(() => {
+    CapacitorApp.exitApp();
+  }, []);
+
+  return (
+    <>
+      {/* Exit Confirmation Overlay */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-6">
+          <div className="bg-[#101F32] rounded-2xl p-6 w-full max-w-sm border border-[#1D344D]/50 text-center">
+            <h3 className="text-lg font-bold text-[#F7F5EF] mb-2">Exit App?</h3>
+            <p className="text-sm text-[#A6B2C2] mb-6">Are you sure you want to close Vlocker?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 py-3 rounded-xl bg-[#14263B] text-[#F7F5EF] font-medium text-sm active:scale-95 transition-transform"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExitApp}
+                className="flex-1 py-3 rounded-xl bg-[#E98B8B]/20 text-[#E98B8B] font-medium text-sm border border-[#E98B8B]/30 active:scale-95 transition-transform"
+              >
+                Exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 function AlertsOverlay() {

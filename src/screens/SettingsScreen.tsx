@@ -1,20 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ChevronLeft, KeyRound, Fingerprint, HardDrive,
-  Download, AlertTriangle, ChevronRight, Check, Eye, EyeOff, LogOut,
+  Download, Upload, AlertTriangle, ChevronRight, Check, Eye, EyeOff, LogOut,
   CheckCircle2, Shield, Building2,
 } from 'lucide-react';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { useApp } from '@/context/AppContext';
 import {
-  getSettings, saveSettings, exportData, clearAllData,
+  getSettings, saveSettings, exportFullBackup, importFullBackup, clearAllData,
   SecureStore,
 } from '@/utils/storage';
 import { APP_NAME } from '@/types';
 
 export default function SettingsScreen() {
-  const { goBack, navigate, logout } = useApp();
+  const { goBack, navigate, logout, refreshData } = useApp();
   const [showChangePin, setShowChangePin] = useState(false);
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -27,6 +27,8 @@ export default function SettingsScreen() {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [showWipeConfirm, setShowWipeConfirm] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([]);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     const id = Date.now() + Math.random();
@@ -53,11 +55,11 @@ export default function SettingsScreen() {
     setPinError('');
     setPinSuccess(false);
 
-    if (!currentPin || currentPin.length < 4) {
-      setPinError('Enter current PIN'); return;
+    if (!currentPin || currentPin.length !== 6) {
+      setPinError('Enter current 6-digit PIN'); return;
     }
-    if (!newPin || newPin.length < 4) {
-      setPinError('New PIN must be at least 4 digits'); return;
+    if (!newPin || newPin.length !== 6) {
+      setPinError('New PIN must be exactly 6 digits'); return;
     }
     if (newPin !== confirmPin) {
       setPinError('New PINs do not match'); return;
@@ -85,8 +87,8 @@ export default function SettingsScreen() {
 
   const handleExport = async () => {
     try {
-      const data = await exportData();
-      const fileName = `vlocker_export_${new Date().toISOString().split('T')[0]}.json`;
+      const data = await exportFullBackup();
+      const fileName = `vlocker_backup_${new Date().toISOString().split('T')[0]}.json`;
 
       // Write to Downloads directory using native Filesystem
       await Filesystem.writeFile({
@@ -98,25 +100,46 @@ export default function SettingsScreen() {
 
       // Share the file
       await Share.share({
-        title: `${APP_NAME} Export`,
-        text: `${APP_NAME} data export - ${new Date().toLocaleDateString()}`,
-        files: [], // Filesystem write handles the save
+        title: `${APP_NAME} Backup`,
+        text: `${APP_NAME} backup - ${new Date().toLocaleDateString()}`,
+        files: [],
       });
 
-      addToast(`Data exported to Downloads/${fileName}`);
+      addToast(`Backup exported to Downloads/${fileName}`);
     } catch (err) {
       // Fallback: try to share as text
       try {
-        const data = await exportData();
+        const data = await exportFullBackup();
         await Share.share({
-          title: `${APP_NAME} Export`,
+          title: `${APP_NAME} Backup`,
           text: data,
-          dialogTitle: 'Export Locker Data',
+          dialogTitle: 'Share Locker Backup',
         });
-        addToast('Data shared successfully');
+        addToast('Backup shared successfully');
       } catch {
         addToast('Export failed', 'error');
       }
+    }
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const result = await importFullBackup(text);
+      if (result.success) {
+        addToast(`Imported ${result.stats?.lockers || 0} lockers, ${result.stats?.items || 0} items, ${result.stats?.photos || 0} photos`);
+        await refreshData();
+      } else {
+        addToast(result.error || 'Import failed', 'error');
+      }
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to read backup file', 'error');
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -150,9 +173,9 @@ export default function SettingsScreen() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1D344D]/50">
+      <div className="flex items-center px-4 pt-5 pb-3 border-b border-[#1D344D]/50">
         <button onClick={goBack} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
-          <ChevronLeft className="w-5 h-5 text-[#A6B2C2]" />
+          <ChevronLeft className="w-5 h-5 text-[#D6B45C]" />
         </button>
         <div className="flex-1 flex flex-col items-center pr-8">
           <h1 className="text-lg font-bold text-[#F7F5EF]">
@@ -234,10 +257,30 @@ export default function SettingsScreen() {
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-medium text-[#F7F5EF]">Export Data</p>
-              <p className="text-xs text-[#A6B2C2]">Export your items as JSON</p>
+              <p className="text-xs text-[#A6B2C2]">Export all data with photos</p>
             </div>
             <ChevronRight className="w-4 h-4 text-[#A6B2C2]" />
           </button>
+          <button onClick={() => fileInputRef.current?.click()}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl card-vault mb-3 active:scale-[0.98] transition-transform"
+            disabled={importing}
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#0B2447] flex items-center justify-center">
+              <Upload className="w-5 h-5 text-[#D6B45C]" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-medium text-[#F7F5EF]">Import Data</p>
+              <p className="text-xs text-[#A6B2C2]">{importing ? 'Importing...' : 'Restore from backup file'}</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-[#A6B2C2]" />
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".json"
+            onChange={handleImportFile}
+            className="hidden"
+          />
           <button onClick={() => setShowWipeConfirm(true)}
             className="w-full flex items-center gap-4 p-4 rounded-2xl card-vault active:scale-[0.98] transition-transform"
           >
@@ -320,7 +363,7 @@ export default function SettingsScreen() {
                 <div className="relative">
                   <label className="text-xs text-[#A6B2C2] mb-1.5 block">New PIN</label>
                   <input type={showNew ? 'text' : 'password'} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="4-6 digits" maxLength={6}
+                    placeholder="6 digits" maxLength={6}
                     className="w-full px-4 py-3 pr-12 rounded-2xl bg-[#081321] border border-[#1D344D] text-[#F7F5EF] text-center text-lg tracking-[0.5em] placeholder:text-[#A6B2C2]/30 placeholder:tracking-normal focus:border-[#D6B45C]/50 transition-colors"
                   />
                   <button onClick={() => setShowNew(!showNew)} className="absolute right-4 top-[2.1rem] text-[#A6B2C2]">
@@ -367,6 +410,15 @@ export default function SettingsScreen() {
                 <HardDrive className="w-4 h-4" />Wipe All
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Import Loading Overlay */}
+      {importing && (
+        <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-10 h-10 border-2 border-[#D6B45C] border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-[#F7F5EF] font-medium">Restoring backup...</span>
           </div>
         </div>
       )}

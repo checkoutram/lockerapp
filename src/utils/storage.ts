@@ -1,14 +1,20 @@
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import type { LockerItem, SecretQuestions, Locker } from '@/types';
 import { savePhoto, deletePhoto, getPhotoUrl } from './photoStorage';
 
+// Synchronous native check — same as working build 6
 const isNative = Capacitor.isNativePlatform();
 
 const Prefs = {
   async get(key: string): Promise<{ value: string | null }> {
     if (isNative) {
-      return Preferences.get({ key });
+      try {
+        return await Preferences.get({ key });
+      } catch {
+        // fallback to localStorage
+      }
     }
     try {
       const val = localStorage.getItem(key);
@@ -19,17 +25,29 @@ const Prefs = {
   },
   async set(key: string, value: string): Promise<void> {
     if (isNative) {
-      await Preferences.set({ key, value });
-    } else {
-      localStorage.setItem(key, value);
+      try {
+        await Preferences.set({ key, value });
+        return;
+      } catch {
+        // fallback to localStorage
+      }
     }
+    try {
+      localStorage.setItem(key, value);
+    } catch {}
   },
   async remove(key: string): Promise<void> {
     if (isNative) {
-      await Preferences.remove({ key });
-    } else {
-      localStorage.removeItem(key);
+      try {
+        await Preferences.remove({ key });
+        return;
+      } catch {
+        // fallback to localStorage
+      }
     }
+    try {
+      localStorage.removeItem(key);
+    } catch {}
   },
 };
 
@@ -348,7 +366,6 @@ export async function importFullBackup(jsonString: string): Promise<{ success: b
 
     // Clean up any existing native photo files
     if (isNative) {
-      const { Filesystem, Directory } = await import('@capacitor/filesystem');
       try {
         await Filesystem.rmdir({ path: 'photos', directory: Directory.Data, recursive: true });
       } catch {

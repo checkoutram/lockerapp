@@ -1,49 +1,76 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
-  Menu, ChevronRight, Plus, Shield, Lock, Landmark, MapPin, Package
+  Menu, ChevronRight, Plus, Shield, Lock, Landmark, MapPin, Package, Trash2, Edit3, Building2
 } from 'lucide-react';
-import { getLockers, getItems, runV3Migration, getAppVersion, setAppVersion } from '../utils/storage';
-import type { Locker, LockerItem } from '../types';
+import { getAppVersion, setAppVersion, deleteLocker as storageDeleteLocker, setItems as storageSetItems, getLockers } from '../utils/storage';
+import type { Locker } from '../types';
 import { APP_VERSION } from '../utils/version';
 import { MenuDrawer } from './MenuDrawer';
 import { AddLockerSheet } from './AddLockerSheet';
 
 export default function LockerListScreen() {
-  const { navigate } = useApp();
-  const [lockers, setLockers] = useState<Locker[]>([]);
-  const [items, setItems] = useState<LockerItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { navigate, lockers, items, refreshData, dataLoaded, setItems, setLockers, showAlert } = useApp();
+  const [isLoading, setIsLoading] = useState(!dataLoaded);
   const [menuOpen, setMenuOpen] = useState(false);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ locker: Locker; x: number; y: number } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const initRef = useRef(false);
-
-  const loadData = useCallback(async () => {
-    const storedLockers = await getLockers();
-    setLockers(storedLockers);
-    const storedItems = await getItems();
-    setItems(storedItems);
-    setIsLoading(false);
-  }, []);
 
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
 
     (async () => {
-      setIsLoading(true);
-      await runV3Migration();
-      await loadData();
+      if (!dataLoaded) {
+        setIsLoading(true);
+        await refreshData();
+      }
       const lastVersion = await getAppVersion();
       if (lastVersion && lastVersion !== APP_VERSION) {
         // Version changed - user updated
       }
       await setAppVersion(APP_VERSION);
+      setIsLoading(false);
     })();
-  }, [loadData]);
+  }, [refreshData, dataLoaded]);
 
   const handleLockerClick = (locker: Locker) => {
     navigate('lockerDetail', { lockerId: locker.id });
+  };
+
+  const handleLockerLongPress = (e: React.MouseEvent | React.TouchEvent, locker: Locker) => {
+    e.preventDefault();
+    const clientX = 'touches' in e ? e.touches[0]?.clientX || 0 : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0]?.clientY || 0 : e.clientY;
+    setContextMenu({ locker, x: clientX, y: clientY });
+  };
+
+  const handleDeleteLocker = async (lockerId: string) => {
+    const allLockers = await getLockers();
+    if (allLockers.length <= 1) {
+      showAlert('Cannot delete the last locker. At least one locker is required.', 'error');
+      setShowDeleteConfirm(null);
+      setContextMenu(null);
+      return;
+    }
+
+    const itemsInLocker = items.filter((i) => i.lockerId === lockerId);
+    if (itemsInLocker.length > 0) {
+      const updatedItems = items.map((i) =>
+        i.lockerId === lockerId ? { ...i, lockerId: 'default' } : i
+      );
+      await storageSetItems(updatedItems);
+      setItems(updatedItems);
+    }
+
+    await storageDeleteLocker(lockerId);
+    const updated = await getLockers();
+    setLockers(updated);
+    setShowDeleteConfirm(null);
+    setContextMenu(null);
+    showAlert('Locker deleted', 'success');
   };
 
   const getItemCountForLocker = (lockerId: string) => {
@@ -61,7 +88,7 @@ export default function LockerListScreen() {
   return (
     <div className="h-full w-full bg-[#050A12] flex flex-col relative">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+      <div className="flex items-center justify-between px-4 pt-5 pb-3">
         <button
           onClick={() => setMenuOpen(true)}
           className="p-2 -ml-2 rounded-full active:bg-white/5"
@@ -99,6 +126,13 @@ export default function LockerListScreen() {
           <button
             key={locker.id}
             onClick={() => handleLockerClick(locker)}
+            onContextMenu={(e) => handleLockerLongPress(e, locker)}
+            onTouchStart={(e) => {
+              const timer = setTimeout(() => handleLockerLongPress(e, locker), 600);
+              const clear = () => clearTimeout(timer);
+              e.currentTarget.addEventListener('touchend', clear, { once: true });
+              e.currentTarget.addEventListener('touchmove', clear, { once: true });
+            }}
             className="w-full text-left bg-[#0B1525] rounded-2xl p-4 border border-[#1D344D]/40 flex items-center gap-4 active:scale-[0.98] transition-transform"
           >
             {/* Locker Icon */}
@@ -113,18 +147,33 @@ export default function LockerListScreen() {
             {/* Locker Info */}
             <div className="flex-1 min-w-0">
               <h3 className="text-lg font-semibold text-[#F7F5EF]">{locker.name}</h3>
-              {locker.bankName ? (
+              {locker.bankName || locker.branch ? (
                 <div className="mt-1 space-y-0.5">
-                  <div className="flex items-center gap-1.5 text-xs text-[#A6B2C2]/70">
-                    <Landmark className="w-3 h-3 text-[#D6B45C]/70" />
-                    <span className="truncate">{locker.bankName}</span>
-                  </div>
-                  {locker.location && (
+                  {locker.bankName && (
+                    <div className="flex items-center gap-1.5 text-xs text-[#A6B2C2]/70">
+                      <Landmark className="w-3 h-3 text-[#D6B45C]/70" />
+                      <span className="truncate">{locker.bankName}</span>
+                    </div>
+                  )}
+                  {locker.branch && (
+                    <div className="flex items-center gap-1.5 text-xs text-[#A6B2C2]/70">
+                      <MapPin className="w-3 h-3 text-[#D6B45C]/70" />
+                      <span className="truncate">{locker.branch}{locker.location ? `, ${locker.location}` : ''}</span>
+                    </div>
+                  )}
+                  {!locker.branch && locker.location && (
                     <div className="flex items-center gap-1.5 text-xs text-[#A6B2C2]/70">
                       <MapPin className="w-3 h-3 text-[#D6B45C]/70" />
                       <span className="truncate">{locker.location}</span>
                     </div>
                   )}
+                </div>
+              ) : locker.location ? (
+                <div className="mt-1 space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-xs text-[#A6B2C2]/70">
+                    <MapPin className="w-3 h-3 text-[#D6B45C]/70" />
+                    <span className="truncate">{locker.location}</span>
+                  </div>
                 </div>
               ) : (
                 <p className="text-sm text-[#A6B2C2]/50 mt-1">Add your locker details</p>
@@ -184,8 +233,83 @@ export default function LockerListScreen() {
       {addSheetOpen && (
         <AddLockerSheet
           onClose={() => setAddSheetOpen(false)}
-          onSaved={() => { setAddSheetOpen(false); loadData(); }}
+          onSaved={() => { setAddSheetOpen(false); refreshData(); }}
         />
+      )}
+
+      {/* Locker Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed inset-0 z-[60]"
+          onClick={() => setContextMenu(null)}
+        >
+          <div
+            className="absolute bg-[#101F32] rounded-xl border border-[#1D344D] shadow-xl py-1 min-w-[180px]"
+            style={{
+              left: Math.min(contextMenu.x, window.innerWidth - 200),
+              top: Math.min(contextMenu.y, window.innerHeight - 120),
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                setContextMenu(null);
+                navigate('lockerDetail', { lockerId: contextMenu.locker.id });
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-[#F7F5EF] hover:bg-[#1D344D]"
+            >
+              <Building2 className="w-4 h-4 text-[#D6B45C]" />
+              View Items
+            </button>
+            <button
+              onClick={() => {
+                setContextMenu(null);
+                navigate('manageLockers');
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-[#F7F5EF] hover:bg-[#1D344D]"
+            >
+              <Edit3 className="w-4 h-4 text-[#A6B2C2]" />
+              Rename
+            </button>
+            <div className="border-t border-[#1D344D] my-1" />
+            <button
+              onClick={() => {
+                setShowDeleteConfirm(contextMenu.locker.id);
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-[#E98B8B] hover:bg-[#3A2427]"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Locker
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-6">
+          <div className="bg-[#101F32] rounded-2xl p-6 w-full max-w-sm border border-[#1D344D]/50">
+            <h3 className="text-lg font-bold text-[#F7F5EF] mb-2">Delete Locker?</h3>
+            <p className="text-sm text-[#A6B2C2] mb-6">
+              Items in this locker will be moved to the default locker. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="flex-1 py-3 rounded-xl bg-[#14263B] text-[#F7F5EF] font-medium text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteLocker(showDeleteConfirm)}
+                className="flex-1 py-3 rounded-xl bg-[#E98B8B]/20 text-[#E98B8B] font-medium text-sm border border-[#E98B8B]/30"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

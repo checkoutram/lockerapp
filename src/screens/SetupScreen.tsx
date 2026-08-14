@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Shield, ChevronDown, Check } from 'lucide-react';
+import { Shield, ChevronDown, Check, ArrowRight } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { SecureStore, saveSecretQuestions } from '@/utils/storage';
 import { digestStringAsync } from '@/utils/crypto';
@@ -56,8 +56,8 @@ export default function SetupScreen() {
 
   const handleNext = useCallback(async () => {
     if (step === 'create') {
-      if (createRef.current.length < 4) {
-        setError('PIN must be at least 4 digits');
+      if (createRef.current.length !== 6) {
+        setError('PIN must be exactly 6 digits');
         setShake(true);
         setTimeout(() => setShake(false), 500);
         return;
@@ -82,13 +82,6 @@ export default function SetupScreen() {
       return;
     }
   }, [step]);
-
-  // Auto-advance confirm PIN
-  useEffect(() => {
-    if (step === 'confirm' && confirmRef.current.length >= 4 && confirmRef.current.length === createRef.current.length) {
-      handleNext();
-    }
-  }, [confirmPin, step, handleNext]);
 
   const handleSaveSecretQuestions = useCallback(async () => {
     // Validate all 3 questions selected and all 3 answers filled
@@ -192,7 +185,17 @@ export default function SetupScreen() {
           className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
         >{num}</button>
       ))}
-      <div className="w-[72px] h-[72px]" />
+      <div className="w-[72px] h-[72px] mx-auto">
+        {(step === 'create' || step === 'confirm') && (
+          <button
+            onClick={handleNext}
+            className="w-[72px] h-[72px] rounded-full bg-[#D6B45C] text-[#081321] active:bg-[#B8983F] active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-[#D6B45C]/20"
+            aria-label="Next"
+          >
+            <ArrowRight className="w-6 h-6" />
+          </button>
+        )}
+      </div>
       <button onClick={() => handlePinInput('0')}
         className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
       >0</button>

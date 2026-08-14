@@ -20,6 +20,8 @@ export interface LockerItem {
   weightAmount: string;
   weightUnit: WeightUnit;
   pieceCount: string;
+  sovereign: string;
+  amount: string;
   dateAdded: string;
   photos: string[];
   billPhotos: string[];

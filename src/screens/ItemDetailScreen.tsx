@@ -1,787 +1,487 @@
-import { useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, Calendar, Scale, Trash2, AlertTriangle, Receipt, Pencil, Camera, ImageIcon, X, CheckCircle2, AlertCircle, Shield, Archive, ArchiveX, Building2, ChevronDown } from 'lucide-react';
-import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
-import { Capacitor } from '@capacitor/core';
-import { useApp } from '@/context/AppContext';
-import { getItems, deleteItem, updateItem } from '@/utils/storage';
-import PhotoImage from '@/components/PhotoImage';
-import type { LockerItem, WeightUnit, MainCategory } from '@/types';
-import {
-  CATEGORY_COLORS, PIECE_COUNT_SUBTYPES,
-  JEWELLERY_SUBTYPES, DOCUMENT_SUBTYPES, MAIN_CATEGORIES,
-  WEIGHT_UNITS_JEWELLERY, WEIGHT_UNITS_DIAMOND, DEFAULT_WEIGHT_UNIT,
-} from '@/types';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { ChevronLeft, Trash2, Calendar, Camera, Edit3, Lock, Unlock, ShieldCheck, Hash, Tag, ChevronRight, X, ZoomIn } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { getItems, getLockers, deleteItem } from '../utils/storage';
+import PhotoImage from '../components/PhotoImage';
+import type { LockerItem, Locker } from '../types';
 
-const JEWEL_CATEGORIES: MainCategory[] = ['Gold', 'Silver', 'Platinum', 'Diamond'];
-function isJewelCategory(c: string): boolean {
-  return JEWEL_CATEGORIES.includes(c as MainCategory);
-}
 
 export default function ItemDetailScreen() {
-  const { goBack, selectedItemId, lockers } = useApp();
+  const { goBack, navigate, screenData, setItems: setContextItems } = useApp();
+  // Capture itemId once on mount so it survives screenData overwrites
+  const [currentItemId] = useState<string | undefined>(screenData?.itemId);
+  const itemId = currentItemId;
   const [item, setItem] = useState<LockerItem | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [locker, setLocker] = useState<Locker | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([]);
-  const [viewerImage, setViewerImage] = useState<string | null>(null);
-  const [viewerAlt, setViewerAlt] = useState('');
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
-  // Edit state
-  const [editName, setEditName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [editCategory, setEditCategory] = useState<MainCategory | ''>('');
-  const [editSubType, setEditSubType] = useState('');
-  const [editSubTypeCustom, setEditSubTypeCustom] = useState('');
-  const [editCategoryCustom, setEditCategoryCustom] = useState('');
-  const [editWeightAmount, setEditWeightAmount] = useState('');
-  const [editWeightUnit, setEditWeightUnit] = useState<WeightUnit>('g');
-  const [editPieceCount, setEditPieceCount] = useState('');
-  const [editDate, setEditDate] = useState('');
-  const [editPhotos, setEditPhotos] = useState<string[]>([]);
-  const [editBillPhotos, setEditBillPhotos] = useState<string[]>([]);
-  const [editInLocker, setEditInLocker] = useState(true);
-  const [editLockerId, setEditLockerId] = useState('default');
-  const [showLockerDropdown, setShowLockerDropdown] = useState(false);
+  // Touch swipe state for carousel
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
+  const carouselRef = useRef<HTMLDivElement>(null);
 
-  const addToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
-  }, []);
+  const loadData = useCallback(async () => {
+    const loadedItems = await getItems();
+    const foundItem = loadedItems.find((i: LockerItem) => i.id === itemId);
+    if (!foundItem) { setIsLoading(false); return; }
+    setItem(foundItem);
+    const loadedLockers = await getLockers();
+    setLocker(loadedLockers.find((l: Locker) => l.id === foundItem.lockerId) || null);
+    setIsLoading(false);
+  }, [itemId]);
 
-  const loadItem = useCallback(async () => {
-    if (!selectedItemId) return;
-    const items = await getItems();
-    const found = items.find((i) => i.id === selectedItemId) || null;
-    setItem(found);
-  }, [selectedItemId]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  useEffect(() => {
-    loadItem();
-  }, [loadItem]);
-
-  const startEdit = () => {
+  const handleToggleInLocker = async () => {
     if (!item) return;
-    setEditName(item.name);
-    setEditDescription(item.description);
-    setEditCategory(item.category);
-    setEditSubType(item.subType);
-    setEditSubTypeCustom(item.subTypeCustom || '');
-    setEditCategoryCustom(item.categoryCustom || '');
-    setEditWeightAmount(item.weightAmount);
-    setEditWeightUnit(item.weightUnit);
-    setEditPieceCount(item.pieceCount);
-    setEditDate(new Date(item.dateAdded).toISOString().split('T')[0]);
-    setEditPhotos([...item.photos]);
-    setEditBillPhotos([...item.billPhotos]);
-    setEditInLocker(item.inLocker !== false);
-    setEditLockerId(item.lockerId || 'default');
-    setIsEditing(true);
-    setSaveError('');
-  };
-
-  const cancelEdit = () => {
-    setIsEditing(false);
-    setShowLockerDropdown(false);
-    setSaveError('');
-  };
-
-  // Helper: read photo file and convert to data URL
-  const readPhotoFile = async (path: string): Promise<string | null> => {
-    try {
-      if (Capacitor.isNativePlatform()) {
-        const { Filesystem } = await import('@capacitor/filesystem');
-        const result = await Filesystem.readFile({ path, directory: undefined });
-        if (typeof result.data === 'string') {
-          const mime = path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-          return `data:${mime};base64,${result.data}`;
-        }
-        return null;
-      }
-      return path;
-    } catch (err: any) {
-      console.error('[readPhotoFile] Error:', err);
-      return null;
-    }
-  };
-
-  // Native Capacitor Camera for edit mode
-  const takeEditPhoto = async (isBill: boolean) => {
-    const maxCount = isBill ? 3 : 5;
-    const current = isBill ? editBillPhotos.length : editPhotos.length;
-    if (current >= maxCount) { setSaveError(`Maximum ${maxCount} photos`); return; }
-
-    try {
-      // Use Uri to bypass native OK/Retry preview
-      const image = await CapCamera.getPhoto({
-        quality: 75,
-        allowEditing: false,
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Camera,
-        width: 1200,
-        height: 1200,
-      });
-      if (!image.path) { setSaveError('No image data'); return; }
-      const dataUrl = await readPhotoFile(image.path);
-      if (!dataUrl) { setSaveError('Failed to read photo'); return; }
-      if (isBill) setEditBillPhotos((prev) => [...prev, dataUrl]);
-      else setEditPhotos((prev) => [...prev, dataUrl]);
-    } catch (err: any) {
-      if (!err?.message?.includes('cancel') && !err?.message?.includes('dismiss')) {
-        setSaveError(err?.message?.includes('permission') ? 'Camera permission denied. Check Settings > Apps > vlocker > Permissions' : 'Camera failed');
-      }
-    }
-  };
-
-  const pickEditPhotoFromGallery = async (isBill: boolean) => {
-    const maxCount = isBill ? 3 : 5;
-    const current = isBill ? editBillPhotos.length : editPhotos.length;
-    if (current >= maxCount) { setSaveError(`Maximum ${maxCount} photos`); return; }
-
-    try {
-      const image = await CapCamera.getPhoto({
-        quality: 75,
-        allowEditing: false,
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Photos,
-        width: 1200,
-        height: 1200,
-      });
-      if (!image.path) { setSaveError('No image data'); return; }
-      const dataUrl = await readPhotoFile(image.path);
-      if (!dataUrl) { setSaveError('Failed to read photo'); return; }
-      if (isBill) setEditBillPhotos((prev) => [...prev, dataUrl]);
-      else setEditPhotos((prev) => [...prev, dataUrl]);
-    } catch (err: any) {
-      if (!err?.message?.includes('cancel') && !err?.message?.includes('dismiss') && !err?.message?.includes('choose')) {
-        setSaveError(err?.message?.includes('permission') ? 'Storage permission denied. Check Settings > Apps > vlocker > Permissions' : 'Gallery failed');
-      }
-    }
-  };
-
-  const handleRemoveEditPhoto = (index: number) => {
-    setEditPhotos((prev) => prev.filter((_, i) => i !== index));
-    if (currentPhotoIndex >= index && currentPhotoIndex > 0) {
-      setCurrentPhotoIndex((p) => p - 1);
-    }
-  };
-
-  const handleRemoveEditBillPhoto = (index: number) => {
-    setEditBillPhotos((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  // Category helpers
-  const availableSubTypes =
-    isJewelCategory(editCategory) ? JEWELLERY_SUBTYPES
-    : editCategory === 'Documents' ? DOCUMENT_SUBTYPES
-    : [];
-
-  const availableWeightUnits =
-    editCategory === 'Diamond' ? WEIGHT_UNITS_DIAMOND
-    : isJewelCategory(editCategory) ? WEIGHT_UNITS_JEWELLERY
-    : WEIGHT_UNITS_JEWELLERY;
-
-  const showWeightSection = isJewelCategory(editCategory);
-  const showPieceCount = isJewelCategory(editCategory) && PIECE_COUNT_SUBTYPES.includes(editSubType);
-  const showSubTypeCustom = editSubType === 'Other (jewellery)' || editSubType === 'Other (document)';
-  const showOtherInput = editCategory === 'Other';
-
-  const handleCategorySelect = (cat: MainCategory) => {
-    setEditCategory(cat);
-    setEditSubType('');
-    setEditSubTypeCustom('');
-    setEditCategoryCustom('');
-    if (isJewelCategory(cat)) {
-      setEditWeightUnit(DEFAULT_WEIGHT_UNIT[cat] || 'g');
-    }
-  };
-
-  const handleSubTypeSelect = (st: string) => {
-    setEditSubType(st);
-    setEditSubTypeCustom('');
-  };
-
-  const handleWeightAmountChange = (val: string) => {
-    const clean = val.replace(/[^0-9.]/g, '');
-    const parts = clean.split('.');
-    const final = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : clean;
-    setEditWeightAmount(final.slice(0, 8));
-  };
-
-  const handlePieceCountChange = (val: string) => {
-    const clean = val.replace(/[^0-9]/g, '');
-    setEditPieceCount(clean);
-  };
-
-  const saveEdit = async () => {
-    if (!item) return;
-    if (!editName.trim()) { setSaveError('Item name is required'); return; }
-    if (!editCategory) { setSaveError('Category is required'); return; }
-    if ((isJewelCategory(editCategory) || editCategory === 'Documents') && !editSubType) {
-      setSaveError('Item type is required'); return;
-    }
-    setIsSaving(true);
-    setSaveError('');
-
-    const updated: LockerItem = {
-      ...item,
-      name: editName.trim(),
-      description: editDescription.trim(),
-      category: editCategory as MainCategory,
-      subType: editSubType,
-      subTypeCustom: editSubTypeCustom,
-      categoryCustom: editCategoryCustom,
-      photos: editPhotos,
-      billPhotos: editBillPhotos,
-      weightAmount: editWeightAmount,
-      weightUnit: editWeightUnit,
-      pieceCount: editPieceCount,
-      dateAdded: new Date(editDate).toISOString(),
-      inLocker: editInLocker,
-      lockerId: editLockerId,
-    };
-
-    const result = await updateItem(updated);
-    setIsSaving(false);
-
-    if (result.success) {
-      setItem(updated);
-      setIsEditing(false);
-      setSaveError('');
-      addToast('Changes saved', 'success');
-    } else {
-      setSaveError(result.error || 'Failed to save changes.');
-    }
+    const loadedItems = await getItems();
+    const updated = loadedItems.map((i: LockerItem) =>
+      i.id === item.id ? { ...i, inLocker: !i.inLocker } : i
+    );
+    await setItems(updated);
+    setContextItems(updated);
+    setItem({ ...item, inLocker: !item.inLocker });
   };
 
   const handleDelete = async () => {
     if (!item) return;
     await deleteItem(item.id);
-    addToast(`"${item.name}" deleted`, 'success');
+    const updated = await getItems();
+    setContextItems(updated);
     goBack();
   };
 
-  if (!item) {
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric',
+      });
+    } catch { return ''; }
+  };
+
+  const handleEditItem = () => {
+    if (!item) return;
+    navigate('addItem', { editItem: item });
+  };
+
+  // Carousel swipe handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.changedTouches[0].screenX;
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.changedTouches[0].screenX;
+  };
+  const handleTouchEnd = () => {
+    const diff = touchStartX.current - touchEndX.current;
+    const threshold = 50;
+    if (Math.abs(diff) > threshold) {
+      if (diff > 0) {
+        // Swipe left → next
+        setCurrentPhotoIndex((prev) => (prev + 1) % allPhotos.length);
+      } else {
+        // Swipe right → prev
+        setCurrentPhotoIndex((prev) => (prev - 1 + allPhotos.length) % allPhotos.length);
+      }
+    }
+  };
+
+  const goToNextPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev + 1) % allPhotos.length);
+  };
+  const goToPrevPhoto = () => {
+    setCurrentPhotoIndex((prev) => (prev - 1 + allPhotos.length) % allPhotos.length);
+  };
+
+  // Full-screen viewer handlers
+  const openViewer = (index: number) => {
+    setViewerIndex(index);
+    setViewerOpen(true);
+  };
+  const closeViewer = () => setViewerOpen(false);
+  const viewerNext = () => setViewerIndex((prev) => (prev + 1) % allPhotos.length);
+  const viewerPrev = () => setViewerIndex((prev) => (prev - 1 + allPhotos.length) % allPhotos.length);
+
+  // Viewer swipe
+  const viewerTouchStart = useRef(0);
+  const viewerTouchEnd = useRef(0);
+  const handleViewerTouchStart = (e: React.TouchEvent) => {
+    viewerTouchStart.current = e.changedTouches[0].screenX;
+  };
+  const handleViewerTouchMove = (e: React.TouchEvent) => {
+    viewerTouchEnd.current = e.changedTouches[0].screenX;
+  };
+  const handleViewerTouchEnd = () => {
+    const diff = viewerTouchStart.current - viewerTouchEnd.current;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) viewerNext();
+      else viewerPrev();
+    }
+  };
+
+  if (isLoading) {
     return (
-      <div className="h-full flex flex-col bg-[#081321]">
-        <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1D344D]/50">
-          <button onClick={goBack} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
-            <ChevronLeft className="w-5 h-5 text-[#A6B2C2]" />
-          </button>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-[#A6B2C2]">Item not found.</p>
-        </div>
+      <div className="h-full w-full bg-[#050A12] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#D6B45C]/20 border-t-[#D6B45C] rounded-full animate-spin" />
       </div>
     );
   }
 
-  const color = CATEGORY_COLORS[item.category] || '#D6B45C';
-  const displayDate = new Date(item.dateAdded).toLocaleDateString('en-IN', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  });
+  if (!item) {
+    return (
+      <div className="h-full w-full bg-[#050A12] flex items-center justify-center text-[#A6B2C2]">
+        <p className="text-sm">Item not found</p>
+      </div>
+    );
+  }
+
+  const allPhotos = [...(item.photos || []), ...(item.billPhotos || [])];
+  const photoCount = (item.photos || []).length;
+  const billCount = (item.billPhotos || []).length;
 
   return (
-    <div className="h-full flex flex-col bg-[#081321] relative">
-      {/* Toast Notifications */}
-      <div className="fixed top-4 left-0 right-0 z-[100] flex flex-col items-center gap-2 pointer-events-none px-4">
-        {toasts.map((toast) => (
-          <div key={toast.id}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto animate-fade-in max-w-[90%] ${
-              toast.type === 'success' ? 'bg-[#36B37E] text-[#F7F5EF]' : 'bg-[#D66A6A] text-[#F7F5EF]'
-            }`}
-          >
-            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
-            {toast.type === 'error' && <AlertCircle className="w-4 h-4 flex-shrink-0" />}
-            <span className="truncate">{toast.message}</span>
-          </div>
-        ))}
-      </div>
-
+    <div className="h-full flex flex-col bg-[#050A12] relative">
       {/* Header */}
-      <div className="flex items-center px-4 pt-6 pb-3 border-b border-[#1D344D]/50">
+      <div className="shrink-0 flex items-center justify-between px-4 pt-5 pb-3">
         <button onClick={goBack} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
-          <ChevronLeft className="w-5 h-5 text-[#A6B2C2]" />
+          <ChevronLeft className="w-5 h-5 text-[#D6B45C]" />
         </button>
-        <div className="flex-1 flex flex-col items-center pr-8 min-w-0">
-          <h1 className="text-lg font-bold text-[#F7F5EF] truncate w-full text-center">
-            {isEditing ? 'Edit Item' : item.name}
-          </h1>
-          {!isEditing && (
-            <span className="text-[9px] text-[#D6B45C]/50 tracking-wide">Know what's inside your locker</span>
-          )}
-        </div>
-        {isEditing ? (
-          <button onClick={cancelEdit} className="p-2 -mr-2 rounded-full active:bg-white/5">
-            <X className="w-5 h-5 text-[#A6B2C2]" />
-          </button>
-        ) : (
-          <button onClick={() => setShowDeleteDialog(true)} className="p-2 -mr-2 rounded-full active:bg-white/5">
-            <Trash2 className="w-5 h-5 text-[#E98B8B]" />
-          </button>
-        )}
+        <h1 className="text-base font-bold text-[#F7F5EF] truncate max-w-[200px]">{item.name}</h1>
+        <button onClick={() => setShowDeleteConfirm(true)} aria-label="Delete"
+          className="p-2 -mr-2 rounded-full active:bg-white/5"
+        >
+          <Trash2 className="w-5 h-5 text-[#E98B8B]" />
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-6">
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
         {/* Photo Carousel */}
-        {item.photos.length > 0 && (
-          <div className="relative w-full aspect-square bg-[#0D1929]">
+        {allPhotos.length > 0 && (
+          <div
+            ref={carouselRef}
+            className="relative mx-4 mb-4 rounded-2xl overflow-hidden aspect-[4/3] bg-[#0B1525] select-none"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <PhotoImage
-              photoRef={item.photos[currentPhotoIndex]}
+              photoRef={allPhotos[currentPhotoIndex]}
               alt={item.name}
               className="w-full h-full object-cover"
-              onClick={() => {
-                setViewerImage(item.photos[currentPhotoIndex]);
-                setViewerAlt(item.name);
-              }}
+              onClick={() => openViewer(currentPhotoIndex)}
             />
-            {item.photos.length > 1 && (
-              <>
-                <button onClick={() => setCurrentPhotoIndex((p) => Math.max(0, p - 1))}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 transition-colors"
-                  style={{ opacity: currentPhotoIndex === 0 ? 0.3 : 1 }}
-                >
-                  <ChevronLeft className="w-5 h-5 text-[#F7F5EF]" />
-                </button>
-                <button onClick={() => setCurrentPhotoIndex((p) => Math.min(item.photos.length - 1, p + 1))}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 transition-colors"
-                  style={{ opacity: currentPhotoIndex === item.photos.length - 1 ? 0.3 : 1 }}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-                </button>
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-                  {item.photos.map((_, i) => (
-                    <div key={i} className={`w-2 h-2 rounded-full transition-all ${i === currentPhotoIndex ? 'bg-[#D6B45C] w-4' : 'bg-white/50'}`} />
-                  ))}
-                </div>
-                <div className="absolute top-3 right-3 bg-black/50 rounded-full px-2.5 py-1">
-                  <span className="text-xs text-[#F7F5EF] font-medium">{currentPhotoIndex + 1}/{item.photos.length}</span>
-                </div>
-              </>
-            )}
-          </div>
-        )}
 
-        {/* Thumbnail Strip */}
-        {item.photos.length > 1 && (
-          <div className="flex gap-2 px-5 py-3 overflow-x-auto">
-            {item.photos.map((photo, i) => (
-              <button key={i} onClick={() => setCurrentPhotoIndex(i)}
-                className={`flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden border-2 transition-all ${i === currentPhotoIndex ? 'border-[#D6B45C]' : 'border-transparent'}`}
+            {/* Tap hint overlay */}
+            <div className="absolute top-2 right-2 bg-black/40 rounded-lg px-2 py-1 pointer-events-none">
+              <ZoomIn className="w-3.5 h-3.5 text-white/70" />
+            </div>
+
+            {/* Left Arrow */}
+            {allPhotos.length > 1 && (
+              <button
+                onClick={goToPrevPhoto}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 transition-colors"
+                aria-label="Previous photo"
               >
-                <PhotoImage photoRef={photo} alt={`Photo ${i + 1}`} className="w-full h-full object-cover"
-                  onClick={() => {
-                    setViewerImage(photo);
-                    setViewerAlt(`${item.name} photo ${i + 1}`);
-                  }}
-                />
+                <ChevronLeft className="w-5 h-5 text-white" />
               </button>
-            ))}
-          </div>
-        )}
-
-        {isEditing ? (
-          <div className="px-5 pt-4 space-y-4">
-            {saveError && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-[#3A2427] border border-red-500/30 text-[#E98B8B] text-xs animate-fade-in">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>{saveError}</span>
-              </div>
             )}
 
-            {/* Edit Name */}
-            <div>
-              <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">Name *</label>
-              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
-                className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] text-sm focus:border-[#D6B45C]/50 transition-colors"
-              />
-            </div>
-
-            {/* Edit Locker */}
-            <div>
-              <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">Locker</label>
-              <div className="relative">
-                <button
-                  onClick={() => setShowLockerDropdown(!showLockerDropdown)}
-                  className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] text-sm text-left flex items-center justify-between focus:border-[#D6B45C]/50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-[#D6B45C]" />
-                    <span>{lockers.find(l => l.id === editLockerId)?.name || 'Select Locker'}</span>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-[#A6B2C2] transition-transform ${showLockerDropdown ? 'rotate-180' : ''}`} />
-                </button>
-                {showLockerDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#101F32] border border-[#1D344D] rounded-xl z-50 overflow-hidden max-h-60 overflow-y-auto">
-                    {lockers.map((locker) => (
-                      <button
-                        key={locker.id}
-                        onClick={() => { setEditLockerId(locker.id); setShowLockerDropdown(false); }}
-                        className={`w-full px-4 py-3 text-left text-sm flex items-center gap-2 hover:bg-[#1D344D] transition-colors ${editLockerId === locker.id ? 'bg-[#1D344D] text-[#D6B45C]' : 'text-[#F7F5EF]'}`}
-                      >
-                        <Building2 className="w-4 h-4" />
-                        {locker.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Edit Category Level 1 */}
-            <div>
-              <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-3 block">Category *</label>
-              <div className="flex flex-wrap gap-2">
-                {MAIN_CATEGORIES.map((cat) => {
-                  const catColor = CATEGORY_COLORS[cat];
-                  const isSelected = editCategory === cat;
-                  return (
-                    <button key={cat} onClick={() => handleCategorySelect(cat)}
-                      className={`px-3 py-2 rounded-xl text-xs font-medium transition-all active:scale-95 border ${
-                        isSelected ? 'border-transparent text-[#081321]' : 'bg-[#101F32] border-[#1D344D] text-[#F7F5EF] hover:border-[#D6B45C]/30'
-                      }`}
-                      style={isSelected ? { backgroundColor: catColor, borderColor: catColor } : {}}
-                    >{cat}</button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Edit Category Level 2 */}
-            {availableSubTypes.length > 0 && (
-              <div className="animate-fade-in">
-                <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-3 block">
-                  {isJewelCategory(editCategory) ? 'Item Type' : 'Document Type'} *
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {availableSubTypes.map((st) => (
-                    <button key={st} onClick={() => handleSubTypeSelect(st)}
-                      className={`px-3 py-2 rounded-xl text-xs transition-all active:scale-95 border ${
-                        editSubType === st ? 'bg-[#D6B45C] border-[#D6B45C] text-[#081321] font-medium' : 'bg-[#101F32] border-[#1D344D] text-[#F7F5EF]'
-                      }`}
-                    >{st}</button>
-                  ))}
-                </div>
-                {showSubTypeCustom && (
-                  <input type="text" value={editSubTypeCustom} onChange={(e) => setEditSubTypeCustom(e.target.value)}
-                    placeholder="Describe the type..."
-                    className="w-full mt-3 px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] text-sm focus:border-[#D6B45C]/50 transition-colors"
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Edit Other Category Custom */}
-            {showOtherInput && (
-              <div className="animate-fade-in">
-                <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">Describe Category *</label>
-                <input type="text" value={editCategoryCustom} onChange={(e) => setEditCategoryCustom(e.target.value)}
-                  placeholder="e.g., Watch, Coin..."
-                  className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] text-sm focus:border-[#D6B45C]/50 transition-colors"
-                />
-              </div>
-            )}
-
-            {/* Edit Weight */}
-            {showWeightSection && (
-              <div className="animate-fade-in">
-                <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">Weight / Quantity</label>
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <input type="text" inputMode="decimal" value={editWeightAmount}
-                      onChange={(e) => handleWeightAmountChange(e.target.value)}
-                      placeholder="e.g., 22.5" maxLength={8}
-                      className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] text-sm focus:border-[#D6B45C]/50 transition-colors"
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 content-start">
-                    {availableWeightUnits.map((unit) => (
-                      <button key={unit} onClick={() => setEditWeightUnit(unit as WeightUnit)}
-                        className={`px-3 py-2 rounded-xl text-xs font-medium transition-all active:scale-95 border ${
-                          editWeightUnit === unit ? 'bg-[#D6B45C] border-[#D6B45C] text-[#081321]' : 'bg-[#101F32] border-[#1D344D] text-[#F7F5EF]'
-                        }`}
-                      >{unit}</button>
-                    ))}
-                  </div>
-                </div>
-                {showPieceCount && (
-                  <input type="text" inputMode="numeric" value={editPieceCount}
-                    onChange={(e) => handlePieceCountChange(e.target.value)} placeholder="No. of pieces"
-                    className="w-full mt-3 px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] text-sm focus:border-[#D6B45C]/50 transition-colors"
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Edit Date */}
-            <div>
-              <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">Date Added</label>
-              <div className="relative">
-                <input type="date" value={editDate}
-                  onChange={(e) => setEditDate(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] text-sm focus:border-[#D6B45C]/50 transition-colors appearance-none"
-                />
-                <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A6B2C2] pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Edit Description */}
-            <div>
-              <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">Description</label>
-              <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={3}
-                className="w-full px-4 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#F7F5EF] text-sm focus:border-[#D6B45C]/50 transition-colors resize-none"
-              />
-            </div>
-
-            {/* Edit Photos */}
-            <div>
-              <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">Photos ({editPhotos.length}/5)</label>
-              <div className="flex gap-3 mb-3">
-                <button onClick={() => takeEditPhoto(false)}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#D6B45C] text-sm font-medium active:scale-95 transition-all">
-                  <Camera className="w-4 h-4" />Take Photo
-                </button>
-                <button onClick={() => pickEditPhotoFromGallery(false)}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#111D2C] border border-[#1D344D] text-[#D6B45C] text-sm font-medium active:scale-95 transition-all">
-                  <ImageIcon className="w-4 h-4" />Gallery
-                </button>
-              </div>
-              {editPhotos.length > 0 && (
-                <div className="flex gap-2 flex-wrap">
-                  {editPhotos.map((photo, i) => (
-                    <button key={i}
-                      onClick={() => { setViewerImage(photo); setViewerAlt(`Photo ${i + 1}`); }}
-                      className="relative active:scale-95 transition-transform"
-                    >
-                      <PhotoImage photoRef={photo} alt={`Photo ${i + 1}`} className="w-20 h-20 rounded-xl object-cover border-2 border-[#D6B45C]/30 bg-[#101F32] cursor-pointer" />
-                      <span
-                        onClick={(e) => { e.stopPropagation(); handleRemoveEditPhoto(i); }}
-                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#D66A6A] flex items-center justify-center z-10"
-                      >
-                        <X className="w-3 h-3 text-[#F7F5EF]" />
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Edit Bill Photos */}
-            <div>
-              <label className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 block">Bill Photos ({editBillPhotos.length}/3)</label>
-              <div className="flex gap-3 mb-3">
-                <button onClick={() => takeEditPhoto(true)}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#5ED6A5] text-sm font-medium active:scale-95 transition-all">
-                  <Camera className="w-4 h-4" />Take Photo
-                </button>
-                <button onClick={() => pickEditPhotoFromGallery(true)}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#5ED6A5] text-sm font-medium active:scale-95 transition-all">
-                  <ImageIcon className="w-4 h-4" />Gallery
-                </button>
-              </div>
-              {editBillPhotos.length > 0 && (
-                <div className="flex gap-2 flex-wrap">
-                  {editBillPhotos.map((photo, i) => (
-                    <button key={i}
-                      onClick={() => { setViewerImage(photo); setViewerAlt(`Bill/Certificate ${i + 1}`); }}
-                      className="relative active:scale-95 transition-transform"
-                    >
-                      <PhotoImage photoRef={photo} alt={`Bill ${i + 1}`} className="w-20 h-20 rounded-xl object-cover border-2 border-[#36B37E]/30 bg-[#101F32] cursor-pointer" />
-                      <span
-                        onClick={(e) => { e.stopPropagation(); handleRemoveEditBillPhoto(i); }}
-                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#D66A6A] flex items-center justify-center z-10"
-                      >
-                        <X className="w-3 h-3 text-[#F7F5EF]" />
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Edit In/Out Toggle */}
-            <button
-              onClick={() => setEditInLocker((v) => !v)}
-              className={`w-full py-3 rounded-2xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98] border mt-4 ${
-                editInLocker
-                  ? 'bg-emerald-500/5 border-[#36B37E] text-[#5ED6A5]'
-                  : 'bg-amber-500/5 border-amber-500/20 text-amber-400'
-              }`}
-            >
-              {editInLocker ? <Archive className="w-4 h-4" /> : <ArchiveX className="w-4 h-4" />}
-              {editInLocker ? 'In Locker' : 'Out of Locker'}
-              <span className={`ml-1 w-7 h-4 rounded-full relative ${editInLocker ? 'bg-emerald-500' : 'bg-amber-500'}`}>
-                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${editInLocker ? 'left-3.5' : 'left-0.5'}`} />
-              </span>
-            </button>
-
-            {/* Save Button */}
-            <button onClick={saveEdit} disabled={isSaving}
-              className={`w-full py-4 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98] mt-4 ${
-                !isSaving ? 'bg-[#D6B45C] text-[#081321]' : 'bg-[#101F32] text-[#A6B2C2] border border-[#1D344D]'
-              }`}
-            >
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        ) : (
-          <div className="px-5 pt-4">
-            {/* Category Badge */}
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: `${color}20`, color }}>
-                {item.category}
-              </span>
-              {item.subType && (
-                <span className="px-3 py-1 rounded-full text-xs bg-[#1D344D] text-[#A6B2C2]">
-                  {item.subType}
-                </span>
-              )}
-              {item.weightAmount && (
-                <span className="px-3 py-1 rounded-full text-xs bg-[#1D344D] text-[#D6B45C] flex items-center gap-1">
-                  <Scale className="w-3 h-3" />{item.weightAmount} {item.weightUnit}
-                </span>
-              )}
-              {(() => {
-                const locker = lockers.find(l => l.id === item.lockerId);
-                return locker ? (
-                  <span className="px-3 py-1 rounded-full text-xs bg-[#0B3B5C]/40 text-[#D6B45C] flex items-center gap-1">
-                    <Building2 className="w-3 h-3" />{locker.name}
-                  </span>
-                ) : null;
-              })()}
-            </div>
-
-            {/* Name */}
-            <h2 className="text-xl font-bold text-[#F7F5EF] mb-1">
-              {item.name}
-            </h2>
-
-            {/* Description */}
-            {item.description && (
-              <p className="text-sm text-[#A6B2C2] mb-4">{item.description}</p>
-            )}
-
-            {/* Date */}
-            <div className="flex items-center gap-2 mb-4">
-              <Calendar className="w-4 h-4 text-[#A6B2C2]" />
-              <span className="text-sm text-[#A6B2C2]">{displayDate}</span>
-            </div>
-
-            {/* Bill Photos */}
-            {item.billPhotos.length > 0 && (
-              <div className="mb-4">
-                <h3 className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Receipt className="w-3.5 h-3.5" />Bill / Certificate
-                </h3>
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {item.billPhotos.map((photo, i) => (
-                    <button key={i}
-                      onClick={() => {
-                        setViewerImage(photo);
-                        setViewerAlt(`Bill/Certificate ${i + 1}`);
-                      }}
-                      className="flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden border-2 border-[#36B37E]/40 relative active:scale-95 transition-transform"
-                    >
-                      <PhotoImage photoRef={photo} alt={`Bill/Certificate ${i + 1}`} className="w-full h-full object-cover" />
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-center py-0.5">
-                        <span className="text-[10px] text-[#F7F5EF]">{i + 1}/{item.billPhotos.length}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* In/Out of Locker Quick Toggle */}
-            <button
-              onClick={async () => {
-                if (!item) return;
-                const updated = { ...item, inLocker: !item.inLocker };
-                const result = await updateItem(updated);
-                if (result.success) {
-                  setItem(updated);
-                  addToast(updated.inLocker ? 'Item marked as In Locker' : 'Item marked as Out of Locker', 'success');
-                }
-              }}
-              className={`w-full mt-3 py-3 rounded-2xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98] border ${
-                item.inLocker !== false
-                  ? 'bg-emerald-500/5 border-[#36B37E] text-[#5ED6A5]'
-                  : 'bg-amber-500/5 border-amber-500/20 text-amber-400'
-              }`}
-            >
-              {item.inLocker !== false ? <Archive className="w-4 h-4" /> : <ArchiveX className="w-4 h-4" />}
-              {item.inLocker !== false ? 'In Locker' : 'Out of Locker'}
-              <span className={`ml-1 w-7 h-4 rounded-full relative ${item.inLocker !== false ? 'bg-emerald-500' : 'bg-amber-500'}`}>
-                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${item.inLocker !== false ? 'left-3.5' : 'left-0.5'}`} />
-              </span>
-            </button>
-
-            {/* Edit Button */}
-            <button onClick={startEdit}
-              className="w-full mt-3 py-3.5 rounded-2xl bg-[#101F32] border border-[#1D344D] text-[#D6B45C] text-sm font-medium flex items-center justify-center gap-2 active:bg-[#1D344D] active:scale-[0.98] transition-all"
-            >
-              <Pencil className="w-4 h-4" />Edit Item
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Delete Dialog */}
-      {showDeleteDialog && !isEditing && (
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center z-50 animate-fade-in">
-          <div className="bg-[#101F32] border-t border-[#1D344D] rounded-t-3xl p-6 w-full">
-            <h3 className="text-lg font-bold text-[#F7F5EF] mb-2">Delete Item?</h3>
-            <p className="text-sm text-[#A6B2C2] mb-6">
-              "{item.name}" will be permanently deleted. This action cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowDeleteDialog(false)}
-                className="flex-1 py-3.5 rounded-2xl bg-[#1D344D] text-[#F7F5EF] text-sm font-medium active:scale-95 transition-transform"
-              >Cancel</button>
-              <button onClick={handleDelete}
-                className="flex-1 py-3.5 rounded-2xl bg-[#D66A6A] text-[#F7F5EF] text-sm font-medium active:scale-95 transition-transform flex items-center justify-center gap-2"
+            {/* Right Arrow */}
+            {allPhotos.length > 1 && (
+              <button
+                onClick={goToNextPhoto}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 transition-colors"
+                aria-label="Next photo"
               >
-                <Trash2 className="w-4 h-4" />Delete
+                <ChevronRight className="w-5 h-5 text-white" />
               </button>
+            )}
+
+            {/* Dots — larger and more tappable */}
+            {allPhotos.length > 1 && (
+              <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
+                {allPhotos.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentPhotoIndex(i)}
+                    className={`h-2.5 rounded-full transition-all active:scale-110 ${
+                      i === currentPhotoIndex
+                        ? 'bg-[#F7F5EF] w-6'
+                        : 'bg-[#F7F5EF]/40 w-2.5'
+                    }`}
+                    aria-label={`Go to photo ${i + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Photo counter */}
+            {allPhotos.length > 1 && (
+              <div className="absolute top-2 left-2 bg-black/50 rounded-lg px-2 py-1 text-[10px] text-white/80 font-medium pointer-events-none">
+                {currentPhotoIndex + 1} / {allPhotos.length}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tags */}
+        <div className="px-4 mb-4 flex flex-wrap gap-2">
+          <span className="px-3 py-1 rounded-full bg-[#1D344D]/60 border border-[#D6B45C]/30 text-xs text-[#D6B45C] font-medium">
+            {item.category}
+          </span>
+          {item.subType && item.subType !== 'Other' && (
+            <span className="px-3 py-1 rounded-full bg-[#1D344D]/60 border border-[#A6B2C2]/20 text-xs text-[#A6B2C2] font-medium">
+              {item.subType}
+            </span>
+          )}
+          {locker && (
+            <span className="px-3 py-1 rounded-full bg-[#1D344D]/60 border border-[#A6B2C2]/20 text-xs text-[#A6B2C2] font-medium flex items-center gap-1">
+              <Lock className="w-3 h-3" />
+              {locker.name}
+            </span>
+          )}
+        </div>
+
+        {/* Item Name & Date */}
+        <div className="px-4 mb-4">
+          <h2 className="text-xl font-bold text-[#F7F5EF]">{item.name}</h2>
+          <div className="flex items-center gap-2 mt-1 text-[#A6B2C2]">
+            <Calendar className="w-4 h-4" />
+            <span className="text-sm">{formatDate(item.dateAdded)}</span>
+          </div>
+        </div>
+
+        {/* Item Location Toggle */}
+        <div className="mx-4 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-[#F7F5EF]">Item Location</span>
+          </div>
+          <div className="flex rounded-2xl overflow-hidden border border-[#1D344D]">
+            <button
+              onClick={handleToggleInLocker}
+              className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium transition-all ${
+                item.inLocker
+                  ? 'bg-[#1D344D] text-[#5ED6A5]'
+                  : 'bg-[#0B1525] text-[#A6B2C2]'
+              }`}
+            >
+              <Lock className="w-4 h-4" />
+              In Locker
+            </button>
+            <button
+              onClick={handleToggleInLocker}
+              className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium transition-all ${
+                !item.inLocker
+                  ? 'bg-[#1D344D] text-[#E98B8B]'
+                  : 'bg-[#0B1525] text-[#A6B2C2]'
+              }`}
+            >
+              <Unlock className="w-4 h-4" />
+              Out of Locker
+            </button>
+          </div>
+        </div>
+
+        {/* Info Grid */}
+        <div className="mx-4 mb-5">
+          <div className="grid grid-cols-4 gap-2">
+            <div className="bg-[#0B1525] border border-[#1D344D] rounded-2xl p-3 text-center">
+              <Camera className="w-4 h-4 text-[#A6B2C2] mx-auto mb-1.5" />
+              <p className="text-[10px] text-[#A6B2C2]">Weight</p>
+              <p className="text-xs text-[#F7F5EF] font-semibold mt-0.5">{item.weightAmount ? `${item.weightAmount} Gram` : '-'}</p>
+            </div>
+            <div className="bg-[#0B1525] border border-[#1D344D] rounded-2xl p-3 text-center">
+              <Tag className="w-4 h-4 text-[#A6B2C2] mx-auto mb-1.5" />
+              <p className="text-[10px] text-[#A6B2C2]">Category</p>
+              <p className="text-xs text-[#F7F5EF] font-semibold mt-0.5">{item.category}</p>
+            </div>
+            <div className="bg-[#0B1525] border border-[#1D344D] rounded-2xl p-3 text-center">
+              <Hash className="w-4 h-4 text-[#A6B2C2] mx-auto mb-1.5" />
+              <p className="text-[10px] text-[#A6B2C2]">Pcs</p>
+              <p className="text-xs text-[#F7F5EF] font-semibold mt-0.5">{item.pieceCount || '1'}</p>
+            </div>
+            <div className="bg-[#0B1525] border border-[#1D344D] rounded-2xl p-3 text-center">
+              <Calendar className="w-4 h-4 text-[#A6B2C2] mx-auto mb-1.5" />
+              <p className="text-[10px] text-[#A6B2C2]">Date Added</p>
+              <p className="text-xs text-[#F7F5EF] font-semibold mt-0.5">{formatDate(item.dateAdded)}</p>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Privacy Note */}
-      <div className="shrink-0 flex items-center justify-center gap-1.5 text-[10px] text-[#5ED6A5]/70 bg-emerald-500/5 px-4 py-2 border-t border-[#36B37E]">
-        <Shield className="w-3 h-3 flex-shrink-0" />
-        <span>Your data stays on your device - private and secure</span>
+        {/* Description */}
+        {item.description && (
+          <div className="mx-4 mb-5">
+            <h3 className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-2">Description</h3>
+            <p className="text-sm text-[#F7F5EF]/80 leading-relaxed">{item.description}</p>
+          </div>
+        )}
+
+        {/* Item Photos */}
+        {photoCount > 0 && (
+          <div className="mx-4 mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-[#F7F5EF]">Item Photos</h3>
+              <span className="text-xs text-[#D6B45C]">{photoCount} Photos</span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {item.photos?.map((photo, i) => (
+                <button
+                  key={i}
+                  onClick={() => openViewer(i)}
+                  className="relative shrink-0 rounded-xl overflow-hidden border border-[#1D344D] bg-[#0B1525] active:scale-95 transition-transform"
+                >
+                  <PhotoImage
+                    photoRef={photo}
+                    alt={`Item ${i + 1}`}
+                    className="w-28 h-20 object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bill / Certificate */}
+        {billCount > 0 && (
+          <div className="mx-4 mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-[#F7F5EF]">Bill / Certificate</h3>
+              <span className="text-xs text-[#D6B45C]">{billCount} Documents</span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {item.billPhotos?.map((photo, i) => (
+                <button
+                  key={i}
+                  onClick={() => openViewer(photoCount + i)}
+                  className="relative shrink-0 rounded-xl overflow-hidden border border-[#1D344D] bg-[#0B1525] active:scale-95 transition-transform"
+                >
+                  <PhotoImage
+                    photoRef={photo}
+                    alt={`Bill ${i + 1}`}
+                    className="w-28 h-20 object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Edit Item Button */}
+        <div className="mx-4 mb-4">
+          <button
+            onClick={handleEditItem}
+            className="w-full py-3.5 rounded-2xl border border-[#D6B45C]/30 bg-[#D6B45C]/10 text-[#D6B45C] text-sm font-semibold flex items-center justify-center gap-2 active:bg-[#D6B45C]/20 transition-colors"
+          >
+            <Edit3 className="w-4 h-4" />
+            Edit Item
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 pb-6 pt-2">
+          <div className="flex items-center justify-center gap-2 text-xs text-[#5ED6A5]">
+            <ShieldCheck className="w-4 h-4" />
+            <span>Your data stays on your device — private and secure</span>
+          </div>
+        </div>
       </div>
 
       {/* Full-Screen Image Viewer */}
-      {viewerImage && (
+      {viewerOpen && allPhotos.length > 0 && (
         <div
-          className="absolute inset-0 bg-black/95 z-[60] flex flex-col animate-fade-in"
-          onClick={() => setViewerImage(null)}
+          className="fixed inset-0 z-[70] bg-black/95 flex flex-col"
+          onTouchStart={handleViewerTouchStart}
+          onTouchMove={handleViewerTouchMove}
+          onTouchEnd={handleViewerTouchEnd}
         >
           {/* Viewer Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-            <span className="text-sm text-[#A6B2C2] truncate flex-1 mr-4">{viewerAlt}</span>
+          <div className="shrink-0 flex items-center justify-between px-4 pt-5 pb-3">
             <button
-              onClick={() => setViewerImage(null)}
-              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center active:bg-white/20 transition-colors"
+              onClick={closeViewer}
+              className="p-2 -ml-2 rounded-full active:bg-white/10"
+              aria-label="Close viewer"
             >
-              <X className="w-5 h-5 text-[#F7F5EF]" />
+              <X className="w-6 h-6 text-white" />
             </button>
+            <span className="text-sm text-white/80 font-medium">
+              {viewerIndex + 1} / {allPhotos.length}
+            </span>
+            <div className="w-10" />
           </div>
+
           {/* Viewer Image */}
-          <div className="flex-1 flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="flex-1 flex items-center justify-center relative px-2">
             <PhotoImage
-              photoRef={viewerImage}
-              alt={viewerAlt}
-              className="max-w-full max-h-full object-contain rounded-xl"
+              photoRef={allPhotos[viewerIndex]}
+              alt={`Photo ${viewerIndex + 1}`}
+              className="max-w-full max-h-full object-contain rounded-lg"
             />
           </div>
-          <div className="text-center pb-4 text-[11px] text-[#A6B2C2]/50">Tap anywhere to close</div>
+
+          {/* Viewer Navigation Arrows */}
+          {allPhotos.length > 1 && (
+            <>
+              <button
+                onClick={viewerPrev}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center active:bg-white/30 transition-colors"
+                aria-label="Previous"
+              >
+                <ChevronLeft className="w-6 h-6 text-white" />
+              </button>
+              <button
+                onClick={viewerNext}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center active:bg-white/30 transition-colors"
+                aria-label="Next"
+              >
+                <ChevronRight className="w-6 h-6 text-white" />
+              </button>
+            </>
+          )}
+
+          {/* Viewer Dots */}
+          {allPhotos.length > 1 && (
+            <div className="shrink-0 flex justify-center gap-2 pb-6 pt-2">
+              {allPhotos.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setViewerIndex(i)}
+                  className={`h-2 rounded-full transition-all ${
+                    i === viewerIndex
+                      ? 'bg-white w-6'
+                      : 'bg-white/40 w-2'
+                  }`}
+                  aria-label={`Go to photo ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-6">
+          <div className="bg-[#101F32] rounded-2xl p-6 w-full max-w-sm border border-[#1D344D]/50">
+            <h3 className="text-lg font-bold text-[#F7F5EF] mb-2">Delete Item?</h3>
+            <p className="text-sm text-[#A6B2C2] mb-6">
+              This will permanently remove "{item.name}" from your locker.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-3 rounded-xl bg-[#14263B] text-[#F7F5EF] font-medium text-sm"
+              >Cancel</button>
+              <button onClick={handleDelete}
+                className="flex-1 py-3 rounded-xl bg-[#E98B8B]/20 text-[#E98B8B] font-medium text-sm border border-[#E98B8B]/30"
+              >Delete</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

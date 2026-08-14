@@ -72,7 +72,7 @@ export default function HomeScreen() {
         ))}
       </div>
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-6 pb-3">
+      <div className="flex items-center justify-between px-4 pt-5 pb-3">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl overflow-hidden border border-[#D6B45C]/30">
             <img src="/vlocker-icon.png" alt={APP_NAME} className="w-full h-full object-contain" />
