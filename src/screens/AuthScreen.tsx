@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Fingerprint, AlertTriangle } from 'lucide-react';
-import { NativeBiometric } from '@capgo/capacitor-native-biometric';
+import { AlertTriangle } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { useApp } from '@/context/AppContext';
 import { SecureStore, AsyncStorage, getSettings, getSecretQuestions, clearAllData } from '@/utils/storage';
@@ -13,7 +12,6 @@ export default function AuthScreen() {
   const [attempts, setAttempts] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(30);
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const pinRef = useRef('');
@@ -34,9 +32,6 @@ export default function AuthScreen() {
   const AUTO_SUBMIT_DELAY = 600;
 
   useEffect(() => {
-    getSettings().then((settings) => {
-      setBiometricEnabled(!!settings.biometric);
-    });
     AsyncStorage.getItem('just_logged_out').then((val) => {
       if (val === 'true') {
         justLoggedOutRef.current = true;
@@ -155,52 +150,8 @@ export default function AuthScreen() {
     scheduleAutoSubmit(pinRef.current);
   }, [isLocked, scheduleAutoSubmit]);
 
-  const handleBiometric = useCallback(async () => {
-    if (submittingRef.current) return;
-
-    if (!Capacitor.isNativePlatform()) {
-      setError('Use PIN on web. Biometric works in the app.');
-      setShake(true);
-      setTimeout(() => setShake(false), 500);
-      return;
-    }
-
-    try {
-      const result = await NativeBiometric.isAvailable();
-      if (!result.isAvailable) {
-        setError('No biometric on this device. Use PIN.');
-        return;
-      }
-
-      submittingRef.current = true;
-      setError('');
-
-      await NativeBiometric.verifyIdentity({
-        reason: 'Unlock your locker',
-        title: 'Biometric Login',
-        subtitle: 'Verify your identity',
-        description: 'Use your fingerprint or face to unlock',
-      });
-
-      setAuthenticated(true);
-      navigate('home');
-    } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.includes('cancel') || msg.includes('dismiss') || msg.includes('user')) {
-        setError('Biometric cancelled.');
-      } else if (msg.includes('not available') || msg.includes('not implemented') || msg.includes('plugin')) {
-        setError('Biometric not available. Use PIN.');
-      } else {
-        setError('Biometric failed. Use PIN.');
-      }
-    } finally {
-      submittingRef.current = false;
-    }
-  }, [setAuthenticated, navigate]);
-
-  // Auto-trigger biometric removed — user must tap fingerprint button
-  // Native biometric plugin requires compilation into APK
-  // The fingerprint button below handles manual biometric auth
+  // Biometric auth removed — native plugin requires APK compilation
+  // Will be re-enabled when building via GitHub Actions with full Android toolchain
 
   useEffect(() => {
     return () => {
@@ -361,8 +312,7 @@ export default function AuthScreen() {
 
   const renderKeypad = (
     onInput: (v: string) => void,
-    onBackspace: () => void,
-    showFingerprint: boolean = false
+    onBackspace: () => void
   ) => (
     <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[300px] mb-6">
       {keypadNumbers.map((num) => (
@@ -463,7 +413,7 @@ export default function AuthScreen() {
               <>
                 {renderPinDots(pin)}
 
-                {renderKeypad(handlePinInput, handleBackspace, true)}
+                {renderKeypad(handlePinInput, handleBackspace)}
               </>
             )}
 
