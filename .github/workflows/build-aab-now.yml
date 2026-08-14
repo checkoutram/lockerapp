@@ -40,7 +40,7 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm ci
 
       - name: Build webapp
         run: npm run build
@@ -60,21 +60,25 @@ jobs:
           fi
 
       - name: Configure signing and version
+        env:
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
         run: |
           cd android/app
           # Update version
-          sed -i 's/versionCode 1/versionCode 2/' build.gradle
-          sed -i 's/versionName "1.0"/versionName "2.5.1"/' build.gradle
+          sed -i 's/versionCode 1/versionCode 3/' build.gradle
+          sed -i 's/versionName "1.0"/versionName "3.0.0"/' build.gradle
           # Add signing config
-          cat >> build.gradle << 'EOF'
+          cat >> build.gradle << EOF
 
           // Release signing
           android.signingConfigs {
               release {
                   storeFile file("vlocker-release.keystore")
-                  storePassword "vlocker2024"
-                  keyAlias "vlocker"
-                  keyPassword "vlocker2024"
+                  storePassword "${KEY_STORE_PASSWORD}"
+                  keyAlias "${ALIAS}"
+                  keyPassword "${KEY_PASSWORD}"
               }
           }
           android.buildTypes.release.signingConfig = android.signingConfigs.release
