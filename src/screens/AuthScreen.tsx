@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { Capacitor } from '@capacitor/core';
 import { useApp } from '@/context/AppContext';
-import { SecureStore, AsyncStorage, getSettings, getSecretQuestions, clearAllData } from '@/utils/storage';
+import { SecureStore, AsyncStorage, getSecretQuestions, clearAllData } from '@/utils/storage';
 import { digestStringAsync } from '@/utils/crypto';
 import { APP_NAME } from '@/types';
 
