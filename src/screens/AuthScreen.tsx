@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { Fingerprint, AlertTriangle } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { SecureStore, AsyncStorage, getSecretQuestions, clearAllData } from '@/utils/storage';
+import { SecureStore, AsyncStorage, getSettings, getSecretQuestions, clearAllData } from '@/utils/storage';
+import { NativeBiometric } from '@capgo/capacitor-native-biometric';
+import { Capacitor } from '@capacitor/core';
 import { digestStringAsync } from '@/utils/crypto';
 import { APP_NAME } from '@/types';
 
@@ -13,6 +15,7 @@ export default function AuthScreen() {
   const [lockoutTime, setLockoutTime] = useState(30);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
   const pinRef = useRef('');
   const submittingRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,6 +45,10 @@ export default function AuthScreen() {
       if (!storedPin) {
         navigate('setup');
       }
+    });
+    // Check if biometric is enabled
+    getSettings().then((settings) => {
+      setBiometricEnabled(!!settings.biometric);
     });
   }, [navigate]);
 
@@ -149,8 +156,58 @@ export default function AuthScreen() {
     scheduleAutoSubmit(pinRef.current);
   }, [isLocked, scheduleAutoSubmit]);
 
-  // Biometric auth removed — native plugin requires APK compilation
-  // Will be re-enabled when building via GitHub Actions with full Android toolchain
+  const handleBiometric = useCallback(async () => {
+    if (submittingRef.current) return;
+
+    if (!Capacitor.isNativePlatform()) {
+      setError('Use PIN on web. Biometric works in the app.');
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      return;
+    }
+
+    try {
+      const result = await NativeBiometric.isAvailable();
+      if (!result.isAvailable) {
+        setError('No biometric on this device. Use PIN.');
+        return;
+      }
+
+      submittingRef.current = true;
+      setError('');
+
+      await NativeBiometric.verifyIdentity({
+        reason: 'Unlock your locker',
+        title: 'Biometric Login',
+        subtitle: 'Verify your identity',
+        description: 'Use your fingerprint or face to unlock',
+      });
+
+      setAuthenticated(true);
+      navigate('home');
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('cancel') || msg.includes('dismiss') || msg.includes('user')) {
+        setError('Biometric cancelled.');
+      } else if (msg.includes('not available') || msg.includes('not implemented') || msg.includes('plugin')) {
+        setError('Biometric not available. Use PIN.');
+      } else {
+        setError('Biometric failed. Use PIN.');
+      }
+    } finally {
+      submittingRef.current = false;
+    }
+  }, [setAuthenticated, navigate]);
+
+  // Auto-trigger biometric if enabled (only on native, not after logout)
+  useEffect(() => {
+    if (biometricEnabled && Capacitor.isNativePlatform() && !justLoggedOutRef.current) {
+      const timer = setTimeout(() => {
+        handleBiometric();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [biometricEnabled, handleBiometric]);
 
   useEffect(() => {
     return () => {
@@ -319,8 +376,18 @@ export default function AuthScreen() {
           className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
         >{num}</button>
       ))}
-      {/* Fingerprint button hidden — native plugin not in APK */}
-      <div className="w-[72px] h-[72px]" />
+      {/* Fingerprint button — shown when biometric enabled */}
+      {biometricEnabled ? (
+        <button
+          onClick={handleBiometric}
+          className="w-[72px] h-[72px] mx-auto rounded-full bg-transparent border-2 border-[#D6B45C]/40 text-[#D6B45C] active:bg-[#D6B45C]/10 active:scale-95 transition-all flex items-center justify-center"
+          aria-label="Use biometric"
+        >
+          <Fingerprint size={24} />
+        </button>
+      ) : (
+        <div className="w-[72px] h-[72px]" />
+      )}
       <button onClick={() => onInput('0')}
         className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
       >0</button>
