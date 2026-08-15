@@ -2,10 +2,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { AppProvider, useApp } from '@/context/AppContext';
+import { cleanupOrphanedPhotos } from '@/utils/storage';
 import { X, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import SplashScreen from '@/screens/SplashScreen';
 import SetupScreen from '@/screens/SetupScreen';
 import AuthScreen from '@/screens/AuthScreen';
+import HomeScreen from '@/screens/HomeScreen';
 import LockerListScreen from '@/screens/LockerListScreen';
 import LockerDetailScreen from '@/screens/LockerDetailScreen';
 import AddItemScreen from '@/screens/AddItemScreen';
@@ -24,7 +26,7 @@ function ScreenRouter() {
     case 'auth':
       return <AuthScreen />;
     case 'home':
-      return <LockerListScreen />;
+      return <HomeScreen />;
     case 'lockerList':
       return <LockerListScreen />;
     case 'lockerDetail':
@@ -52,6 +54,8 @@ function AppStateMonitor() {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         hiddenTime = Date.now();
+        // Clean up orphaned photos when app goes to background
+        cleanupOrphanedPhotos().catch(() => {});
       } else if (hiddenTime && isAuthenticated) {
         const awayTime = Date.now() - hiddenTime;
         if (awayTime > 1800000 && screen !== 'auth' && screen !== 'setup' && screen !== 'splash') {
