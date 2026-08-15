@@ -221,7 +221,7 @@ export default function HomeScreen() {
       </div>
 
       {/* FAB */}
-      <button onClick={() => navigate('addItem')} aria-label="Add Item"
+      <button onClick={() => navigate('addItem', { editItem: null })} aria-label="Add Item"
         className="absolute bottom-6 right-5 w-14 h-14 rounded-full bg-[#D6B45C] flex items-center justify-center shadow-lg active:scale-95 transition-transform z-10 animate-pulse-gold"
       >
         <Plus className="w-6 h-6 text-[#081321]" strokeWidth={2.5} />
