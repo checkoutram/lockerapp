@@ -7,7 +7,7 @@ import type { LockerItem, Locker } from '../types';
 
 
 export default function ItemDetailScreen() {
-  const { goBack, navigate, screenData, setItems: setContextItems } = useApp();
+  const { goBack, navigate, screenData, setItems: setContextItems, screen } = useApp();
   // Capture itemId once on mount so it survives screenData overwrites
   const [currentItemId] = useState<string | undefined>(screenData?.itemId);
   const itemId = currentItemId;
@@ -35,6 +35,13 @@ export default function ItemDetailScreen() {
   }, [itemId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Reload when screen becomes active again (e.g., after editing)
+  useEffect(() => {
+    if (screen === 'itemDetail') {
+      loadData();
+    }
+  }, [screen, loadData]);
 
   const handleToggleInLocker = async () => {
     if (!item) return;
