@@ -272,10 +272,11 @@ export default function ItemDetailScreen() {
           <div className="flex rounded-2xl overflow-hidden border border-[#1D344D]">
             <button
               onClick={handleToggleInLocker}
+              disabled={item.inLocker}
               className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium transition-all ${
                 item.inLocker
-                  ? 'bg-[#1D344D] text-[#5ED6A5]'
-                  : 'bg-[#0B1525] text-[#A6B2C2]'
+                  ? 'bg-[#1D344D] text-[#5ED6A5] cursor-default'
+                  : 'bg-[#0B1525] text-[#A6B2C2] active:bg-[#14263B]'
               }`}
             >
               <Lock className="w-4 h-4" />
@@ -283,10 +284,11 @@ export default function ItemDetailScreen() {
             </button>
             <button
               onClick={handleToggleInLocker}
+              disabled={!item.inLocker}
               className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium transition-all ${
                 !item.inLocker
-                  ? 'bg-[#1D344D] text-[#E98B8B]'
-                  : 'bg-[#0B1525] text-[#A6B2C2]'
+                  ? 'bg-[#1D344D] text-[#E98B8B] cursor-default'
+                  : 'bg-[#0B1525] text-[#A6B2C2] active:bg-[#14263B]'
               }`}
             >
               <Unlock className="w-4 h-4" />
