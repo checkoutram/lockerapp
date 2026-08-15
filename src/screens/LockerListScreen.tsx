@@ -58,8 +58,10 @@ export default function LockerListScreen() {
 
     const itemsInLocker = items.filter((i) => i.lockerId === lockerId);
     if (itemsInLocker.length > 0) {
+      const remainingLockers = lockers.filter((l) => l.id !== lockerId);
+      const fallbackId = remainingLockers[0]?.id || '';
       const updatedItems = items.map((i) =>
-        i.lockerId === lockerId ? { ...i, lockerId: 'default' } : i
+        i.lockerId === lockerId ? { ...i, lockerId: fallbackId } : i
       );
       await storageSetItems(updatedItems);
       setItems(updatedItems);
