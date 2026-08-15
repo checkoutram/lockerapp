@@ -358,33 +358,33 @@ export default function AddItemScreen() {
 
         {/* Weight / Sovereign / Pcs / Amount Row */}
         <div className="mb-5">
-          <div className="grid grid-cols-4 gap-2.5">
-            <div>
-              <label className="text-xs text-[#A6B2C2] mb-1.5 block">Weight (Gram)</label>
+          <div className="grid grid-cols-4 gap-2.5 items-start">
+            <div className="flex flex-col">
+              <label className="text-xs text-[#A6B2C2] mb-1.5 block leading-tight min-h-[2.2em] flex items-end">Weight (Gram)</label>
               <input type="text" inputMode="decimal" value={weightAmount}
                 onChange={(e) => handleWeightAmountChange(e.target.value)}
-                placeholder="e.g., 25.500"
+                placeholder="e.g., 25"
                 className="w-full px-3 py-3 rounded-2xl bg-[#0B1525] border border-[#1D344D] text-[#F7F5EF] placeholder-[#667487]/40 text-xs focus:border-[#D6B45C]/50 transition-colors outline-none"
               />
             </div>
-            <div>
-              <label className="text-xs text-[#A6B2C2] mb-1.5 block">Sovereign</label>
+            <div className="flex flex-col">
+              <label className="text-xs text-[#A6B2C2] mb-1.5 block leading-tight min-h-[2.2em] flex items-end">Sovereign</label>
               <input type="text" inputMode="decimal" value={sovereign}
                 onChange={(e) => handleSovereignChange(e.target.value)}
                 placeholder="e.g., 2"
                 className="w-full px-3 py-3 rounded-2xl bg-[#0B1525] border border-[#1D344D] text-[#F7F5EF] placeholder-[#667487]/40 text-xs focus:border-[#D6B45C]/50 transition-colors outline-none"
               />
             </div>
-            <div>
-              <label className="text-xs text-[#A6B2C2] mb-1.5 block">Pcs</label>
+            <div className="flex flex-col">
+              <label className="text-xs text-[#A6B2C2] mb-1.5 block leading-tight min-h-[2.2em] flex items-end">Pcs</label>
               <input type="text" inputMode="numeric" value={pieceCount}
                 onChange={(e) => handlePieceCountChange(e.target.value)}
                 placeholder="e.g., 1"
                 className="w-full px-3 py-3 rounded-2xl bg-[#0B1525] border border-[#1D344D] text-[#F7F5EF] placeholder-[#667487]/40 text-xs focus:border-[#D6B45C]/50 transition-colors outline-none"
               />
             </div>
-            <div>
-              <label className="text-xs text-[#A6B2C2] mb-1.5 block">Amount (₹)</label>
+            <div className="flex flex-col">
+              <label className="text-xs text-[#A6B2C2] mb-1.5 block leading-tight min-h-[2.2em] flex items-end">Amount (₹)</label>
               <input type="text" inputMode="numeric" value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 placeholder="e.g., 50000"
