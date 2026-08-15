@@ -756,9 +756,9 @@ export async function exportFullBackupZip(): Promise<{ blob: Blob; skippedPhotos
 /**
  * Import from a ZIP file.
  */
-export async function importFullBackupZip(zipBlob: Blob): Promise<{ success: boolean; error?: string; stats?: { lockers: number; items: number; photos: number }; orphanedItems?: number }> {
+export async function importFullBackupZip(zipData: Blob | ArrayBuffer): Promise<{ success: boolean; error?: string; stats?: { lockers: number; items: number; photos: number }; orphanedItems?: number }> {
   try {
-    const zip = await JSZip.loadAsync(zipBlob);
+    const zip = await JSZip.loadAsync(zipData);
     const jsonFile = zip.file('backup.json');
     if (!jsonFile) {
       return { success: false, error: 'Invalid ZIP: backup.json not found' };
