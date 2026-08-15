@@ -104,7 +104,6 @@ export default function SettingsScreen() {
           path: fileName,
           data: data,
           directory: Directory.Cache,
-          encoding: 'utf8',
         });
 
         // Get the file URI to share
