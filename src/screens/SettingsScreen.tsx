@@ -9,7 +9,7 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
 import { useApp } from '@/context/AppContext';
 import {
-  getSettings, saveSettings, exportFullBackup, importFullBackup, clearAllData,
+  getSettings, saveSettings, exportFullBackupZip, importFullBackup, importFullBackupZip, clearAllData,
   SecureStore,
 } from '@/utils/storage';
 import { APP_NAME } from '@/types';
@@ -87,24 +87,39 @@ export default function SettingsScreen() {
   };
 
   const handleExport = async () => {
-    let data = '';
+    let zipBlob: Blob;
+    let skippedPhotos = 0;
     try {
-      data = await exportFullBackup();
+      const result = await exportFullBackupZip();
+      zipBlob = result.blob;
+      skippedPhotos = result.skippedPhotos;
     } catch (err: any) {
       addToast(`Export failed: ${err?.message || 'Could not read data'}`, 'error');
       return;
     }
 
-    const fileName = `vlocker_backup_${new Date().toISOString().split('T')[0]}.json`;
+    if (skippedPhotos > 0) {
+      addToast(`${skippedPhotos} photo(s) could not be exported`, 'error');
+    }
+
+    const fileName = `vlocker_backup_${new Date().toISOString().split('T')[0]}.zip`;
 
     try {
       if (Capacitor.isNativePlatform()) {
-        // Write to cache dir — no permissions needed on any Android version
+        // Convert blob to base64 for native Filesystem
+        const arrayBuffer = await zipBlob.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64Data = btoa(binary);
+
+        // Write to cache dir
         await Filesystem.writeFile({
           path: fileName,
-          data: data,
+          data: base64Data,
           directory: Directory.Cache,
-          encoding: Encoding.UTF8,
         });
 
         // Get the file URI to share
@@ -121,11 +136,17 @@ export default function SettingsScreen() {
           dialogTitle: 'Share Backup File',
         });
 
+        // Clean up cache file
+        try {
+          await Filesystem.deleteFile({ path: fileName, directory: Directory.Cache });
+        } catch {
+          // ignore cleanup errors
+        }
+
         addToast('Backup file shared');
       } else {
         // Web: trigger download
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
+        const url = URL.createObjectURL(zipBlob);
         const a = document.createElement('a');
         a.href = url;
         a.download = fileName;
@@ -138,7 +159,6 @@ export default function SettingsScreen() {
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('cancel') || msg.includes('dismiss') || msg.includes('user')) {
-        // User cancelled share — not an error
         return;
       }
       addToast(`Export failed: ${msg || 'Could not save file'}`, 'error');
@@ -150,8 +170,14 @@ export default function SettingsScreen() {
     if (!file) return;
     setImporting(true);
     try {
-      const text = await file.text();
-      const result = await importFullBackup(text);
+      let result;
+      // Detect ZIP by extension or MIME type
+      if (file.name.toLowerCase().endsWith('.zip') || file.type === 'application/zip') {
+        result = await importFullBackupZip(file);
+      } else {
+        const text = await file.text();
+        result = await importFullBackup(text);
+      }
       if (result.success) {
         addToast(`Imported ${result.stats?.lockers || 0} lockers, ${result.stats?.items || 0} items, ${result.stats?.photos || 0} photos`);
         await refreshData();
@@ -280,7 +306,7 @@ export default function SettingsScreen() {
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm font-medium text-[#F7F5EF]">Export Data</p>
-              <p className="text-xs text-[#A6B2C2]">Export all data with photos</p>
+              <p className="text-xs text-[#A6B2C2]">Export all data with photos (ZIP)</p>
             </div>
             <ChevronRight className="w-4 h-4 text-[#A6B2C2]" />
           </button>
@@ -300,7 +326,7 @@ export default function SettingsScreen() {
           <input
             type="file"
             ref={fileInputRef}
-            accept=".json"
+            accept=".zip,.json"
             onChange={handleImportFile}
             className="hidden"
           />
@@ -348,7 +374,7 @@ export default function SettingsScreen() {
 
         {/* Version */}
         <div className="text-center pt-2 pb-2">
-          <p className="text-xs text-[#A6B2C2]">{APP_NAME} v2.2.2</p>
+          <p className="text-xs text-[#A6B2C2]">{APP_NAME} v3.0.0</p>
         </div>
       </div>
 
