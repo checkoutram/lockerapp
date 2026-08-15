@@ -309,11 +309,15 @@ export async function exportFullBackup(): Promise<string> {
     if (item.photos && item.photos.length > 0) {
       const embeddedPhotos: string[] = [];
       for (const photoRef of item.photos) {
-        if (photoRef.startsWith('file://')) {
-          const dataUri = await getPhotoUrl(photoRef);
-          if (dataUri) embeddedPhotos.push(dataUri);
-        } else if (photoRef.startsWith('data:')) {
-          embeddedPhotos.push(photoRef);
+        try {
+          if (photoRef.startsWith('file://')) {
+            const dataUri = await getPhotoUrl(photoRef);
+            if (dataUri) embeddedPhotos.push(dataUri);
+          } else if (photoRef.startsWith('data:')) {
+            embeddedPhotos.push(photoRef);
+          }
+        } catch {
+          // Skip unreadable photos
         }
       }
       item.photos = embeddedPhotos;
@@ -323,11 +327,15 @@ export async function exportFullBackup(): Promise<string> {
     if (item.billPhotos && item.billPhotos.length > 0) {
       const embeddedBillPhotos: string[] = [];
       for (const photoRef of item.billPhotos) {
-        if (photoRef.startsWith('file://')) {
-          const dataUri = await getPhotoUrl(photoRef);
-          if (dataUri) embeddedBillPhotos.push(dataUri);
-        } else if (photoRef.startsWith('data:')) {
-          embeddedBillPhotos.push(photoRef);
+        try {
+          if (photoRef.startsWith('file://')) {
+            const dataUri = await getPhotoUrl(photoRef);
+            if (dataUri) embeddedBillPhotos.push(dataUri);
+          } else if (photoRef.startsWith('data:')) {
+            embeddedBillPhotos.push(photoRef);
+          }
+        } catch {
+          // Skip unreadable photos
         }
       }
       item.billPhotos = embeddedBillPhotos;
