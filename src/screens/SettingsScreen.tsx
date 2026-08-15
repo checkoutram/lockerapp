@@ -168,9 +168,17 @@ export default function SettingsScreen() {
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Diagnostic: check file metadata
+    if (file.size === 0) {
+      addToast('File is 0 bytes. Re-download the backup.', 'error');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setImporting(true);
     try {
-      // Explicitly read file via FileReader (more reliable on native webview)
+      // Read via FileReader (more reliable on native webview)
       const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as ArrayBuffer);
@@ -178,20 +186,23 @@ export default function SettingsScreen() {
         reader.readAsArrayBuffer(file);
       });
 
-      if (arrayBuffer.byteLength === 0) {
-        addToast('Selected file is empty', 'error');
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        addToast('Read 0 bytes from file. Re-download the backup.', 'error');
+        return;
+      }
+
+      if (arrayBuffer.byteLength !== file.size) {
+        addToast(`Size mismatch: expected ${file.size}, got ${arrayBuffer.byteLength}`, 'error');
         return;
       }
 
       let result;
-      const isZip = file.name.toLowerCase().endsWith('.zip') || file.type === 'application/zip';
+      const isZip = file.name.toLowerCase().endsWith('.zip');
 
       if (isZip) {
-        // Pass Blob to JSZip
-        const blob = new Blob([arrayBuffer]);
-        result = await importFullBackupZip(blob);
+        // Pass ArrayBuffer directly to JSZip (more reliable than Blob on webview)
+        result = await importFullBackupZip(arrayBuffer);
       } else {
-        // Decode as UTF-8 text for JSON
         const text = new TextDecoder().decode(arrayBuffer);
         result = await importFullBackup(text);
       }
