@@ -806,7 +806,7 @@ export async function importFullBackupZip(zipBlob: Blob): Promise<{ success: boo
           const zipPath = item.photos[i];
           const photoFile = zip.file(zipPath);
           if (photoFile) {
-            const base64Data = await photoFile.async('text');
+            const base64Data = await photoFile.async('string');
             if (base64Data.startsWith('data:')) {
               const savedPath = await savePhoto(base64Data, item.id, i);
               newPhotoPaths.push(savedPath);
@@ -824,7 +824,7 @@ export async function importFullBackupZip(zipBlob: Blob): Promise<{ success: boo
           const zipPath = item.billPhotos[i];
           const photoFile = zip.file(zipPath);
           if (photoFile) {
-            const base64Data = await photoFile.async('text');
+            const base64Data = await photoFile.async('string');
             if (base64Data.startsWith('data:')) {
               const savedPath = await savePhoto(base64Data, item.id, i + 100);
               newBillPaths.push(savedPath);
