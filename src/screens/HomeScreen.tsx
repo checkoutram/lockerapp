@@ -1,18 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Lock, Plus, Settings, ImageIcon, Trash2, Eye, Scale, Receipt, CheckCircle2, AlertCircle, Shield, ArchiveX } from 'lucide-react';
+import {
+  Lock, Plus, Settings, Archive, Eye, CheckCircle2, AlertCircle, Shield,
+  ChevronRight, Gem, FileText, Smartphone, Package,
+} from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { getItems, deleteItem } from '@/utils/storage';
-import PhotoImage from '@/components/PhotoImage';
-import type { LockerItem } from '@/types';
-import { CATEGORY_COLORS, APP_NAME } from '@/types';
+import { getItems, getLockers } from '@/utils/storage';
+import type { Locker, LockerItem } from '@/types';
+import { APP_NAME } from '@/types';
 
 type Toast = { id: number; message: string; type: 'success' | 'error' };
 
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  Jewellery: <Gem className="w-5 h-5" />,
+  Document: <FileText className="w-5 h-5" />,
+  Electronics: <Smartphone className="w-5 h-5" />,
+  Other: <Package className="w-5 h-5" />,
+};
+
 export default function HomeScreen() {
   const { navigate } = useApp();
+  const [lockers, setLockers] = useState<Locker[]>([]);
   const [items, setItems] = useState<LockerItem[]>([]);
-  const [contextMenu, setContextMenu] = useState<{ item: LockerItem; x: number; y: number } | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<LockerItem | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -24,36 +32,29 @@ export default function HomeScreen() {
     }, 3000);
   }, []);
 
-  const loadItems = useCallback(async () => {
-    const data = await getItems();
-    setItems(data);
+  const loadData = useCallback(async () => {
+    const [lockerData, itemData] = await Promise.all([getLockers(), getItems()]);
+    setLockers(lockerData);
+    setItems(itemData);
     setLoaded(true);
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const inLockerItems = items.filter((i) => i.inLocker !== false);
   const outOfLockerItems = items.filter((i) => i.inLocker === false);
 
-  useEffect(() => {
-    loadItems();
-  }, [loadItems]);
+  const getLockerItemCount = (lockerId: string) =>
+    items.filter((i) => i.lockerId === lockerId).length;
+  const getLockerInCount = (lockerId: string) =>
+    items.filter((i) => i.lockerId === lockerId && i.inLocker !== false).length;
+  const getLockerOutCount = (lockerId: string) =>
+    items.filter((i) => i.lockerId === lockerId && i.inLocker === false).length;
 
-  const handleDelete = async (item: LockerItem) => {
-    await deleteItem(item.id);
-    setDeleteConfirm(null);
-    setContextMenu(null);
-    addToast(`"${item.name}" deleted`, 'success');
-    loadItems();
-  };
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const handleLongPress = (item: LockerItem, e: React.MouseEvent) => {
-    e.preventDefault();
-    setContextMenu({ item, x: Math.min(e.clientX, 300), y: Math.min(e.clientY, 500) });
-  };
+  const getLockerPreviewItems = (lockerId: string) =>
+    items.filter((i) => i.lockerId === lockerId).slice(0, 3);
 
   return (
     <div className="h-full flex flex-col bg-[#081321] relative">
@@ -71,6 +72,7 @@ export default function HomeScreen() {
           </div>
         ))}
       </div>
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-5 pb-3">
         <div className="flex items-center gap-2.5">
@@ -78,10 +80,8 @@ export default function HomeScreen() {
             <img src="/vlocker-icon.png" alt={APP_NAME} className="w-full h-full object-contain" />
           </div>
           <div>
-            <span className="text-base font-bold text-[#D6B45C] block">
-              {APP_NAME}
-            </span>
-            <span className="text-[9px] text-[#D6B45C]/50 tracking-wide">Know what's inside your locker</span>
+            <span className="text-base font-bold text-[#D6B45C] block">{APP_NAME}</span>
+            <span className="text-[9px] text-[#D6B45C]/50 tracking-wide">Know what&apos;s inside your locker</span>
           </div>
         </div>
         <button onClick={() => navigate('settings')} aria-label="Settings"
@@ -107,164 +107,100 @@ export default function HomeScreen() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* Lockers List */}
       <div className="flex-1 overflow-y-auto px-5 pb-24">
         {!loaded ? (
-          <div className="grid grid-cols-2 gap-3">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="rounded-2xl bg-[#101F32] border border-[#1D344D] h-52 animate-pulse" />
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-2xl bg-[#101F32] border border-[#1D344D] h-24 animate-pulse" />
             ))}
           </div>
-        ) : items.length === 0 ? (
+        ) : lockers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 animate-fade-in">
-            <div className="w-32 h-32 rounded-full bg-[#101F32] border border-[#1D344D] flex items-center justify-center mb-6 relative">
-              <Lock className="w-14 h-14 text-[#A6B2C2]/40" />
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#081321] border border-[#1D344D] flex items-center justify-center">
-                <ImageIcon className="w-4 h-4 text-[#A6B2C2]/40" />
-              </div>
+            <div className="w-24 h-24 rounded-full bg-[#101F32] border border-[#1D344D] flex items-center justify-center mb-5">
+              <Lock className="w-10 h-10 text-[#A6B2C2]/40" />
             </div>
-            <h3 className="text-xl font-bold text-[#F7F5EF] mb-2">
-              Your Locker is Empty
-            </h3>
+            <h3 className="text-xl font-bold text-[#F7F5EF] mb-2">No Lockers Yet</h3>
             <p className="text-sm text-[#A6B2C2] text-center max-w-[240px]">
-              Tap + to add items to {APP_NAME}.
+              Tap + to create your first locker and start adding items.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {items.map((item, index) => {
-              const catColor = CATEGORY_COLORS[item.category] || '#95A5A6';
-              const displayCategory = item.category === 'Other' ? (item.categoryCustom || 'Other') : item.category;
-              const displaySubType = item.subType === 'Other (jewellery)' || item.subType === 'Other (document)'
-                ? (item.subTypeCustom || item.subType)
-                : item.subType;
-              const weightSummary = item.weightAmount
-                ? `${item.weightAmount} ${item.weightUnit}`
-                : '';
-
-              const isOut = item.inLocker === false;
+          <div className="space-y-3">
+            {lockers.map((locker) => {
+              const total = getLockerItemCount(locker.id);
+              const inCount = getLockerInCount(locker.id);
+              const outCount = getLockerOutCount(locker.id);
+              const previewItems = getLockerPreviewItems(locker.id);
 
               return (
-                <div key={item.id}
-                  onClick={() => navigate('itemDetail', item.id)}
-                  onContextMenu={(e) => handleLongPress(item, e)}
-                  onTouchStart={(e) => {
-                    const timer = setTimeout(() => {
-                      const touch = e.touches[0];
-                      if (touch) handleLongPress(item, { preventDefault: () => {}, clientX: touch.clientX, clientY: touch.clientY } as React.MouseEvent);
-                    }, 600);
-                    (e.currentTarget as HTMLElement).addEventListener('touchend', () => clearTimeout(timer), { once: true });
-                  }}
-                  className={`rounded-2xl card-vault overflow-hidden active:scale-[0.98] transition-transform cursor-pointer animate-slide-in ${isOut ? 'opacity-60' : ''}`}
-                  style={{ animationDelay: `${index * 50}ms` }}
+                <button key={locker.id}
+                  onClick={() => navigate('lockerDetail', { lockerId: locker.id })}
+                  className="w-full text-left rounded-2xl card-vault p-4 active:scale-[0.98] transition-transform animate-slide-in"
                 >
-                  {/* Photo */}
-                  <div className="relative aspect-square bg-[#0D1929]">
-                    {item.photos.length > 0 ? (
-                      <>
-                        <PhotoImage
-                          photoRef={item.photos[0]}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
-                        {item.photos.length > 1 && (
-                          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full">
-                            <span className="text-xs text-[#F7F5EF] font-medium">{item.photos.length}</span>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ImageIcon className="w-8 h-8 text-[#A6B2C2]/30" />
-                      </div>
-                    )}
-                    {/* Out of Locker Badge */}
-                    {isOut && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                        <div className="bg-amber-500/90 text-[#081321] text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
-                          <ArchiveX className="w-3 h-3" /> Out of Locker
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <div className="flex items-center gap-3">
+                    {/* Locker Icon */}
+                    <div className="w-12 h-12 rounded-xl bg-[#D6B45C]/10 flex items-center justify-center shrink-0">
+                      <Archive className="w-6 h-6 text-[#D6B45C]" />
+                    </div>
 
-                  {/* Info */}
-                  <div className="p-3">
-                    <p className="text-sm font-medium text-[#F7F5EF] truncate">{item.name}</p>
-                    <p className="text-[11px] text-[#A6B2C2] mt-0.5 truncate">{displaySubType || displayCategory}</p>
-                    <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{
-                        backgroundColor: `${catColor}20`, color: catColor, border: `1px solid ${catColor}30`,
-                      }}>
-                        {displayCategory}
-                      </span>
+                    {/* Locker Info */}
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        {item.billPhotos && item.billPhotos.length > 0 && (
-                          <span className="text-[10px] text-[#5ED6A5] flex items-center gap-0.5">
-                            <Receipt className="w-2.5 h-2.5" />Bill
+                        <h3 className="text-base font-semibold text-[#F7F5EF] truncate">{locker.name}</h3>
+                        {outCount > 0 && (
+                          <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-medium">
+                            {outCount} out
                           </span>
                         )}
-                        {weightSummary && (
-                          <span className="text-[10px] text-[#A6B2C2] flex items-center gap-0.5">
-                            <Scale className="w-2.5 h-2.5" />{weightSummary}
-                          </span>
-                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs text-[#A6B2C2]">{total} items</span>
+                        <span className="text-xs text-[#5ED6A5]">{inCount} in</span>
+                        {outCount > 0 && <span className="text-xs text-amber-400/70">{outCount} out</span>}
                       </div>
                     </div>
-                    <p className="text-[10px] text-[#A6B2C2] mt-1">{formatDate(item.dateAdded)}</p>
+
+                    {/* Preview dots */}
+                    {previewItems.length > 0 && (
+                      <div className="flex -space-x-2 shrink-0">
+                        {previewItems.map((item) => (
+                          <div key={item.id}
+                            className="w-8 h-8 rounded-full bg-[#101F32] border border-[#1D344D] flex items-center justify-center"
+                            title={item.name}
+                          >
+                            {CATEGORY_ICONS[item.category] || CATEGORY_ICONS.Other}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <ChevronRight className="w-5 h-5 text-[#667487] shrink-0" />
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
         )}
       </div>
 
-      {/* FAB */}
-      <button onClick={() => navigate('addItem', { editItem: null })} aria-label="Add Item"
+      {/* FAB — Add Item (goes to locker list for selection, or default locker) */}
+      <button
+        onClick={() => {
+          if (lockers.length === 1) {
+            navigate('addItem', { preselectedLockerId: lockers[0].id, editItem: null });
+          } else if (lockers.length > 1) {
+            navigate('lockerList', { selectForAdd: true });
+          } else {
+            addToast('Create a locker first', 'error');
+            navigate('manageLockers');
+          }
+        }}
+        aria-label="Add Item"
         className="absolute bottom-6 right-5 w-14 h-14 rounded-full bg-[#D6B45C] flex items-center justify-center shadow-lg active:scale-95 transition-transform z-10 animate-pulse-gold"
       >
         <Plus className="w-6 h-6 text-[#081321]" strokeWidth={2.5} />
       </button>
-
-      {/* Context Menu */}
-      {contextMenu && (
-        <>
-          <div className="absolute inset-0 z-40" onClick={() => setContextMenu(null)} />
-          <div className="absolute z-50 bg-[#101F32] border border-[#1D344D] rounded-2xl shadow-xl overflow-hidden min-w-[160px] animate-scale-in"
-            style={{ left: contextMenu.x > 200 ? contextMenu.x - 160 : contextMenu.x, top: contextMenu.y > 400 ? contextMenu.y - 100 : contextMenu.y }}
-          >
-            <button onClick={() => { navigate('itemDetail', contextMenu.item.id); setContextMenu(null); }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#F7F5EF] hover:bg-[#1D344D] transition-colors"
-            >
-              <Eye className="w-4 h-4 text-[#A6B2C2]" />View Details
-            </button>
-            <button onClick={() => { setDeleteConfirm(contextMenu.item); setContextMenu(null); }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#E98B8B] hover:bg-[#3A2427] transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />Delete
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* Delete Confirmation */}
-      {deleteConfirm && (
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-6 animate-fade-in">
-          <div className="bg-[#101F32] border border-[#1D344D] rounded-3xl p-6 w-full max-w-[340px]">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-[#3A2427] flex items-center justify-center"><Trash2 className="w-5 h-5 text-[#E98B8B]" /></div>
-              <h3 className="text-lg font-bold text-[#F7F5EF]">Delete Item</h3>
-            </div>
-            <p className="text-sm text-[#A6B2C2] mb-2">Remove <span className="text-[#F7F5EF] font-medium">{deleteConfirm.name}</span> from your {APP_NAME}?</p>
-            <p className="text-sm text-[#E98B8B] mb-6">This will delete all photos and information permanently.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 rounded-2xl bg-[#1D344D] text-[#F7F5EF] text-sm font-medium active:scale-95 transition-transform">Cancel</button>
-              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 py-3 rounded-2xl bg-[#D66A6A] text-[#F7F5EF] text-sm font-medium active:scale-95 transition-transform">Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Privacy Note */}
       <div className="shrink-0 flex items-center justify-center gap-1.5 text-[10px] text-[#5ED6A5]/70 bg-emerald-500/5 px-4 py-2 border-t border-[#36B37E]">
