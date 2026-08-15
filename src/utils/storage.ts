@@ -579,9 +579,7 @@ export async function cleanupOrphanedPhotos(): Promise<{ deleted: number; errors
     let errors = 0;
 
     for (const file of files) {
-      const filePath = `file://${Directory.Data}/photos/${file.name}`;
       // Normalize path for comparison
-      const normalizedPath = filePath.replace(/\/+/g, '/');
       let isReferenced = false;
       for (const ref of referencedPaths) {
         if (ref.includes(file.name)) {
@@ -758,7 +756,7 @@ export async function exportFullBackupZip(): Promise<{ blob: Blob; skippedPhotos
 /**
  * Import from a ZIP file.
  */
-export async function importFullBackupZip(zipBlob: Blob): Promise<{ success: boolean; error?: string; stats?: { lockers: number; items: number; photos: number } }> {
+export async function importFullBackupZip(zipBlob: Blob): Promise<{ success: boolean; error?: string; stats?: { lockers: number; items: number; photos: number }; orphanedItems?: number }> {
   try {
     const zip = await JSZip.loadAsync(zipBlob);
     const jsonFile = zip.file('backup.json');
