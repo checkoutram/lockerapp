@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Lock, Plus, Settings, Archive, Eye, CheckCircle2, AlertCircle, Shield,
+  Lock, Plus, Settings, Archive, CheckCircle2, AlertCircle, Shield,
   ChevronRight, Gem, FileText, Smartphone, Package,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
