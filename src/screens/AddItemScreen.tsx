@@ -231,8 +231,10 @@ export default function AddItemScreen() {
     if (result.success) {
       addToast(isEditMode ? 'Item updated!' : 'Item saved!', 'success');
       if (isEditMode) {
-        navigate('itemDetail', { item });
+        addToast('Item updated!', 'success');
+        goBack(); // Return to ItemDetailScreen (will reload fresh data)
       } else {
+        addToast('Item saved!', 'success');
         goBack();
       }
     } else {
