@@ -284,23 +284,6 @@ export default function AuthScreen() {
     setConfirmNewPin(confirmNewPinRef.current);
   }, []);
 
-  // Auto-advance to confirm PIN step
-  useEffect(() => {
-    if (forgotStep === 'createPin' && newPinRef.current.length === 6) {
-      const timer = setTimeout(() => {
-        setForgotStep('confirmPin');
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [newPin, forgotStep]);
-
-  // Auto-submit when confirm PIN matches
-  useEffect(() => {
-    if (forgotStep === 'confirmPin' && confirmNewPinRef.current.length === 6 && confirmNewPinRef.current === newPinRef.current) {
-      handleSaveNewPin();
-    }
-  }, [confirmNewPin, forgotStep]);
-
   const handleSaveNewPin = useCallback(async () => {
     if (newPinRef.current !== confirmNewPinRef.current) {
       setError('PINs do not match. Try again.');
@@ -330,6 +313,23 @@ export default function AuthScreen() {
     setAuthenticated(true);
     navigate('home');
   }, [navigate, setAuthenticated]);
+
+  // Auto-advance to confirm PIN step
+  useEffect(() => {
+    if (forgotStep === 'createPin' && newPinRef.current.length === 6) {
+      const timer = setTimeout(() => {
+        setForgotStep('confirmPin');
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [newPin, forgotStep]);
+
+  // Auto-submit when confirm PIN matches
+  useEffect(() => {
+    if (forgotStep === 'confirmPin' && confirmNewPinRef.current.length === 6 && confirmNewPinRef.current === newPinRef.current) {
+      handleSaveNewPin();
+    }
+  }, [confirmNewPin, forgotStep, handleSaveNewPin]);
 
   const handleWipeData = useCallback(async () => {
     await clearAllData();
