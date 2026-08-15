@@ -95,17 +95,17 @@ export default function AddItemScreen() {
   };
 
   const handleWeightAmountChange = (val: string) => {
-    const clean = val.replace(/[^0-9.]/g, '');
+    let clean = val.replace(/[^0-9.]/g, '');
     const parts = clean.split('.');
-    const final = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : clean;
-    setWeightAmount(final.slice(0, 8));
+    if (parts.length > 2) clean = parts[0] + '.' + parts[1];
+    setWeightAmount(clean.slice(0, 8));
   };
 
   const handleSovereignChange = (val: string) => {
-    const clean = val.replace(/[^0-9.]/g, '');
+    let clean = val.replace(/[^0-9.]/g, '');
     const parts = clean.split('.');
-    const final = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : clean;
-    setSovereign(final.slice(0, 5));
+    if (parts.length > 2) clean = parts[0] + '.' + parts[1];
+    setSovereign(clean.slice(0, 5));
   };
 
   const handlePieceCountChange = (val: string) => {
@@ -230,13 +230,7 @@ export default function AddItemScreen() {
     setIsSaving(false);
     if (result.success) {
       addToast(isEditMode ? 'Item updated!' : 'Item saved!', 'success');
-      if (isEditMode) {
-        addToast('Item updated!', 'success');
-        goBack(); // Return to ItemDetailScreen (will reload fresh data)
-      } else {
-        addToast('Item saved!', 'success');
-        goBack();
-      }
+      goBack();
     } else {
       setSaveError(result.error || 'Failed to save');
       addToast(result.error || 'Save failed', 'error');
@@ -287,7 +281,7 @@ export default function AddItemScreen() {
       {/* Form */}
       <div className="flex-1 overflow-y-auto px-5 py-4 pb-36">
         {/* Locker Selector */}
-        {!isEditMode && lockers.length > 1 && (
+        {lockers.length > 1 && (
           <div className="mb-5" ref={lockerDropdownRef}>
             <label className="text-sm text-[#F7F5EF] font-medium mb-2 block">
               Select Locker <span className="text-[#E98B8B]">*</span>
@@ -411,6 +405,7 @@ export default function AddItemScreen() {
           <label className="text-sm text-[#F7F5EF] font-medium mb-2 block">Date Added</label>
           <div className="relative">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
               className="w-full px-4 py-3.5 rounded-2xl bg-[#0B1525] border border-[#1D344D] text-[#F7F5EF] text-sm focus:border-[#D6B45C]/50 transition-colors appearance-none outline-none"
             />
             <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A6B2C2] pointer-events-none" />
