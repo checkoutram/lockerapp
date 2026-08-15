@@ -1,6 +1,7 @@
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import JSZip from 'jszip';
 import type { LockerItem, SecretQuestions, Locker } from '@/types';
 import { savePhoto, deletePhoto, getPhotoUrl } from './photoStorage';
 
@@ -546,6 +547,64 @@ export async function getLegacyLockers(): Promise<any[]> {
   return value ? JSON.parse(value) : [];
 }
 
+/**
+ * Clean up orphaned photo files that are no longer referenced by any item.
+ */
+export async function cleanupOrphanedPhotos(): Promise<{ deleted: number; errors: number }> {
+  if (!isNative) return { deleted: 0, errors: 0 };
+
+  try {
+    // Get all referenced photo paths
+    const items = await getItems();
+    const referencedPaths = new Set<string>();
+    for (const item of items) {
+      for (const photo of item.photos || []) {
+        if (photo.startsWith('file://')) referencedPaths.add(photo);
+      }
+      for (const photo of item.billPhotos || []) {
+        if (photo.startsWith('file://')) referencedPaths.add(photo);
+      }
+    }
+
+    // List all files in photos directory
+    let files: { name: string }[] = [];
+    try {
+      const result = await Filesystem.readdir({ path: 'photos', directory: Directory.Data });
+      files = result.files;
+    } catch {
+      return { deleted: 0, errors: 0 };
+    }
+
+    let deleted = 0;
+    let errors = 0;
+
+    for (const file of files) {
+      const filePath = `file://${Directory.Data}/photos/${file.name}`;
+      // Normalize path for comparison
+      const normalizedPath = filePath.replace(/\/+/g, '/');
+      let isReferenced = false;
+      for (const ref of referencedPaths) {
+        if (ref.includes(file.name)) {
+          isReferenced = true;
+          break;
+        }
+      }
+      if (!isReferenced) {
+        try {
+          await Filesystem.deleteFile({ path: `photos/${file.name}`, directory: Directory.Data });
+          deleted++;
+        } catch {
+          errors++;
+        }
+      }
+    }
+
+    return { deleted, errors };
+  } catch {
+    return { deleted: 0, errors: 0 };
+  }
+}
+
 export async function clearLegacyData(): Promise<void> {
   await Prefs.remove(LEGACY_ITEMS_KEY);
   await Prefs.remove(LEGACY_LOCKERS_KEY);
@@ -596,4 +655,209 @@ export async function runV3Migration(): Promise<{ migrated: boolean; defaultLock
   await setMigrated();
 
   return { migrated: true, defaultLockerId };
+}
+
+// ---- ZIP EXPORT/IMPORT ----
+
+interface ZipPhotoEntry {
+  zipPath: string;
+  data: string; // base64
+}
+
+/**
+ * Export all data as a ZIP file.
+ * Structure: backup.json + photos/ folder with individual photo files.
+ */
+export async function exportFullBackupZip(): Promise<{ blob: Blob; skippedPhotos: number }> {
+  const zip = new JSZip();
+  const [items, lockers, secretQuestions, settings] = await Promise.all([
+    getItems(), getLockers(), getSecretQuestions(), getSettings(),
+  ]);
+
+  // Clone items for export
+  const exportItems: LockerItem[] = JSON.parse(JSON.stringify(items));
+  const photoEntries: ZipPhotoEntry[] = [];
+  let skippedPhotos = 0;
+
+  for (const item of exportItems) {
+    // Item photos
+    if (item.photos && item.photos.length > 0) {
+      const newPaths: string[] = [];
+      for (let i = 0; i < item.photos.length; i++) {
+        const photoRef = item.photos[i];
+        let base64Data = '';
+        try {
+          if (photoRef.startsWith('file://')) {
+            base64Data = await getPhotoUrl(photoRef) || '';
+          } else if (photoRef.startsWith('data:')) {
+            base64Data = photoRef;
+          }
+        } catch {
+          skippedPhotos++;
+        }
+        if (base64Data) {
+          const zipPath = `photos/${item.id}_${i}.txt`;
+          photoEntries.push({ zipPath, data: base64Data });
+          newPaths.push(zipPath);
+        } else {
+          skippedPhotos++;
+        }
+      }
+      item.photos = newPaths;
+    }
+
+    // Bill photos
+    if (item.billPhotos && item.billPhotos.length > 0) {
+      const newPaths: string[] = [];
+      for (let i = 0; i < item.billPhotos.length; i++) {
+        const photoRef = item.billPhotos[i];
+        let base64Data = '';
+        try {
+          if (photoRef.startsWith('file://')) {
+            base64Data = await getPhotoUrl(photoRef) || '';
+          } else if (photoRef.startsWith('data:')) {
+            base64Data = photoRef;
+          }
+        } catch {
+          skippedPhotos++;
+        }
+        if (base64Data) {
+          const zipPath = `photos/${item.id}_bill_${i}.txt`;
+          photoEntries.push({ zipPath, data: base64Data });
+          newPaths.push(zipPath);
+        } else {
+          skippedPhotos++;
+        }
+      }
+      item.billPhotos = newPaths;
+    }
+  }
+
+  // Add JSON metadata
+  const backup = {
+    version: '2.0',
+    exportedAt: new Date().toISOString(),
+    appVersion: '3.0.0',
+    format: 'zip',
+    lockers,
+    items: exportItems,
+    secretQuestions,
+    settings,
+  };
+  zip.file('backup.json', JSON.stringify(backup, null, 2));
+
+  // Add photos
+  for (const entry of photoEntries) {
+    zip.file(entry.zipPath, entry.data);
+  }
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  return { blob, skippedPhotos };
+}
+
+/**
+ * Import from a ZIP file.
+ */
+export async function importFullBackupZip(zipBlob: Blob): Promise<{ success: boolean; error?: string; stats?: { lockers: number; items: number; photos: number } }> {
+  try {
+    const zip = await JSZip.loadAsync(zipBlob);
+    const jsonFile = zip.file('backup.json');
+    if (!jsonFile) {
+      return { success: false, error: 'Invalid ZIP: backup.json not found' };
+    }
+
+    const jsonContent = await jsonFile.async('string');
+    const backup = JSON.parse(jsonContent) as any;
+
+    if (!backup.version || !Array.isArray(backup.lockers) || !Array.isArray(backup.items)) {
+      return { success: false, error: 'Invalid backup file. Missing required data.' };
+    }
+
+    // Wipe existing data
+    await clearAllData();
+    if (isNative) {
+      try {
+        await Filesystem.rmdir({ path: 'photos', directory: Directory.Data, recursive: true });
+      } catch { /* ignore */ }
+    }
+
+    // Restore lockers
+    if (backup.lockers.length > 0) {
+      await saveLockers(backup.lockers);
+    }
+
+    // Validate locker IDs exist
+    const validLockerIds = new Set(backup.lockers.map((l: Locker) => l.id));
+    const fallbackLockerId = backup.lockers[0]?.id || '';
+    let orphanedItems = 0;
+
+    // Restore items with photos from ZIP
+    let photoCount = 0;
+    const restoredItems: LockerItem[] = JSON.parse(JSON.stringify(backup.items));
+
+    for (const item of restoredItems) {
+      // Fix orphaned locker references
+      if (item.lockerId && !validLockerIds.has(item.lockerId)) {
+        item.lockerId = fallbackLockerId;
+        orphanedItems++;
+      }
+      // Restore item photos
+      if (item.photos && item.photos.length > 0) {
+        const newPhotoPaths: string[] = [];
+        for (let i = 0; i < item.photos.length; i++) {
+          const zipPath = item.photos[i];
+          const photoFile = zip.file(zipPath);
+          if (photoFile) {
+            const base64Data = await photoFile.async('text');
+            if (base64Data.startsWith('data:')) {
+              const savedPath = await savePhoto(base64Data, item.id, i);
+              newPhotoPaths.push(savedPath);
+              photoCount++;
+            }
+          }
+        }
+        item.photos = newPhotoPaths;
+      }
+
+      // Restore bill photos
+      if (item.billPhotos && item.billPhotos.length > 0) {
+        const newBillPaths: string[] = [];
+        for (let i = 0; i < item.billPhotos.length; i++) {
+          const zipPath = item.billPhotos[i];
+          const photoFile = zip.file(zipPath);
+          if (photoFile) {
+            const base64Data = await photoFile.async('text');
+            if (base64Data.startsWith('data:')) {
+              const savedPath = await savePhoto(base64Data, item.id, i + 100);
+              newBillPaths.push(savedPath);
+              photoCount++;
+            }
+          }
+        }
+        item.billPhotos = newBillPaths;
+      }
+    }
+
+    await setItems(restoredItems);
+
+    if (backup.secretQuestions) {
+      await saveSecretQuestions(backup.secretQuestions);
+    }
+    if (backup.settings) {
+      const { pin, ...safeSettings } = backup.settings as Record<string, unknown>;
+      await saveSettings(safeSettings);
+    }
+
+    return {
+      success: true,
+      stats: {
+        lockers: backup.lockers.length,
+        items: backup.items.length,
+        photos: photoCount,
+      },
+      orphanedItems,
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to import ZIP backup' };
+  }
 }
