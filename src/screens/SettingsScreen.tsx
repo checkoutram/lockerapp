@@ -5,7 +5,7 @@ import {
   CheckCircle2, Shield, Building2,
 } from 'lucide-react';
 import { Share } from '@capacitor/share';
-import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
 import { useApp } from '@/context/AppContext';
 import {
@@ -104,6 +104,7 @@ export default function SettingsScreen() {
           path: fileName,
           data: data,
           directory: Directory.Cache,
+          encoding: Encoding.UTF8,
         });
 
         // Get the file URI to share
