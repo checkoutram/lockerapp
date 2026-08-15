@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
   ChevronLeft, Search, Plus, Calendar, Trash2,
@@ -23,6 +23,13 @@ export default function LockerDetailScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [contextItem, setContextItem] = useState<LockerItem | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    };
+  }, []);
 
   const loadData = useCallback(async () => {
     const loadedItems = await getItems();
@@ -158,16 +165,26 @@ export default function LockerDetailScreen() {
       <div className="flex-1 overflow-y-auto px-4 pb-28">
         {filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-[#A6B2C2]/40 py-12">
-            <Calendar className="w-12 h-12 mb-4" />
-            <p className="text-sm">No items found</p>
-            <p className="text-xs mt-1">Add your first item</p>
+            <Search className="w-12 h-12 mb-4" />
+            <p className="text-sm">
+              {searchQuery.trim() ? `No matches for "${searchQuery}"` : 'No items found'}
+            </p>
+            <p className="text-xs mt-1">
+              {searchQuery.trim() ? 'Try a different search term' : 'Add your first item'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {filteredItems.map((item) => {
-              let pressTimer: ReturnType<typeof setTimeout>;
-              const startPress = () => { pressTimer = setTimeout(() => handleLongPress(item), 500); };
-              const cancelPress = () => clearTimeout(pressTimer);
+              const startPress = () => {
+                pressTimerRef.current = setTimeout(() => handleLongPress(item), 500);
+              };
+              const cancelPress = () => {
+                if (pressTimerRef.current) {
+                  clearTimeout(pressTimerRef.current);
+                  pressTimerRef.current = null;
+                }
+              };
               return (
                 <div key={item.id}
                   onClick={() => navigate('itemDetail', { itemId: item.id })}
