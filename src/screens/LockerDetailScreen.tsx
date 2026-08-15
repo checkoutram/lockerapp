@@ -39,10 +39,9 @@ export default function LockerDetailScreen() {
     loadData();
   }, [loadData]);
 
-  const filteredItems = items.filter((item) => {
+  // Items matching the search query for this locker
+  const searchItems = items.filter((item) => {
     if (item.lockerId !== lockerId) return false;
-    if (activeTab === 'in' && !item.inLocker) return false;
-    if (activeTab === 'out' && item.inLocker) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -52,9 +51,17 @@ export default function LockerDetailScreen() {
     );
   });
 
-  const totalCount = items.filter((i) => i.lockerId === lockerId).length;
-  const inLockerCount = items.filter((i) => i.lockerId === lockerId && i.inLocker).length;
-  const outOfLockerCount = items.filter((i) => i.lockerId === lockerId && !i.inLocker).length;
+  // Tab-filtered items
+  const filteredItems = searchItems.filter((item) => {
+    if (activeTab === 'in' && !item.inLocker) return false;
+    if (activeTab === 'out' && item.inLocker) return false;
+    return true;
+  });
+
+  // Counts reflect the search filter
+  const totalCount = searchItems.length;
+  const inLockerCount = searchItems.filter((i) => i.inLocker).length;
+  const outOfLockerCount = searchItems.filter((i) => !i.inLocker).length;
 
   const formatDate = (iso: string) => {
     try {
