@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, Trash2, Calendar, Camera, Edit3, Lock, Unlock, ShieldCheck, Hash, Tag, ChevronRight, X, ZoomIn } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getItems, getLockers, deleteItem } from '../utils/storage';
+import { getItems, getLockers, deleteItem, updateItem } from '../utils/storage';
 import PhotoImage from '../components/PhotoImage';
 import type { LockerItem, Locker } from '../types';
 
@@ -38,13 +38,14 @@ export default function ItemDetailScreen() {
 
   const handleToggleInLocker = async () => {
     if (!item) return;
+    const updatedItem = { ...item, inLocker: !item.inLocker };
+    // Persist to storage first
+    await updateItem(updatedItem);
+    // Update context state so parent screens reflect the change
     const loadedItems = await getItems();
-    const updated = loadedItems.map((i: LockerItem) =>
-      i.id === item.id ? { ...i, inLocker: !i.inLocker } : i
-    );
-    await setContextItems(updated);
-    setContextItems(updated);
-    setItem({ ...item, inLocker: !item.inLocker });
+    setContextItems(loadedItems);
+    // Update local state
+    setItem(updatedItem);
   };
 
   const handleDelete = async () => {
