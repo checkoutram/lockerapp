@@ -20,7 +20,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 type Toast = { id: number; message: string; type: 'success' | 'error' | 'info' };
 
 export default function AddItemScreen() {
-  const { goBack, navigate, lockers, items, screenData } = useApp();
+  const { goBack, lockers, items, screenData } = useApp();
   const preselectedLockerId = screenData?.preselectedLockerId;
   const editItem = screenData?.editItem as LockerItem | undefined;
   const isEditMode = !!editItem;
