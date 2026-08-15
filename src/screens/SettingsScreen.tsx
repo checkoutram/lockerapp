@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Capacitor } from '@capacitor/core';
 import { useApp } from '@/context/AppContext';
 import {
   getSettings, saveSettings, exportFullBackup, importFullBackup, clearAllData,
@@ -86,39 +87,61 @@ export default function SettingsScreen() {
   };
 
   const handleExport = async () => {
+    let data = '';
     try {
-      const data = await exportFullBackup();
-      const fileName = `vlocker_backup_${new Date().toISOString().split('T')[0]}.json`;
+      data = await exportFullBackup();
+    } catch (err: any) {
+      addToast(`Export failed: ${err?.message || 'Could not read data'}`, 'error');
+      return;
+    }
 
-      // Write to Downloads directory using native Filesystem
-      await Filesystem.writeFile({
-        path: `Download/${fileName}`,
-        data: data,
-        directory: Directory.ExternalStorage,
-        recursive: true,
-      });
+    const fileName = `vlocker_backup_${new Date().toISOString().split('T')[0]}.json`;
 
-      // Share the file
-      await Share.share({
-        title: `${APP_NAME} Backup`,
-        text: `${APP_NAME} backup - ${new Date().toLocaleDateString()}`,
-        files: [],
-      });
+    try {
+      if (Capacitor.isNativePlatform()) {
+        // Write to cache dir — no permissions needed on any Android version
+        await Filesystem.writeFile({
+          path: fileName,
+          data: data,
+          directory: Directory.Cache,
+          encoding: 'utf8',
+        });
 
-      addToast(`Backup exported to Downloads/${fileName}`);
-    } catch (err) {
-      // Fallback: try to share as text
-      try {
-        const data = await exportFullBackup();
+        // Get the file URI to share
+        const uriResult = await Filesystem.getUri({
+          path: fileName,
+          directory: Directory.Cache,
+        });
+
+        // Share the actual file
         await Share.share({
           title: `${APP_NAME} Backup`,
-          text: data,
-          dialogTitle: 'Share Locker Backup',
+          text: `${APP_NAME} backup — ${new Date().toLocaleDateString()}`,
+          files: [uriResult.uri],
+          dialogTitle: 'Share Backup File',
         });
-        addToast('Backup shared successfully');
-      } catch {
-        addToast('Export failed', 'error');
+
+        addToast('Backup file shared');
+      } else {
+        // Web: trigger download
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        addToast('Backup downloaded');
       }
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('cancel') || msg.includes('dismiss') || msg.includes('user')) {
+        // User cancelled share — not an error
+        return;
+      }
+      addToast(`Export failed: ${msg || 'Could not save file'}`, 'error');
     }
   };
 
