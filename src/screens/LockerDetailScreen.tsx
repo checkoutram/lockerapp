@@ -212,7 +212,7 @@ export default function LockerDetailScreen() {
       {/* FAB */}
       <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center z-10 pointer-events-none">
         <button
-          onClick={() => navigate('addItem', { preselectedLockerId: lockerId })}
+          onClick={() => navigate('addItem', { preselectedLockerId: lockerId, editItem: null })}
           aria-label="Add item"
           className="pointer-events-auto w-14 h-14 rounded-full bg-[#5ED6A5] text-[#050A12] flex items-center justify-center shadow-lg shadow-[#5ED6A5]/30 active:scale-95 transition-transform"
         >
