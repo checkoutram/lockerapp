@@ -7,7 +7,6 @@ import { X, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import SplashScreen from '@/screens/SplashScreen';
 import SetupScreen from '@/screens/SetupScreen';
 import AuthScreen from '@/screens/AuthScreen';
-import HomeScreen from '@/screens/HomeScreen';
 import LockerListScreen from '@/screens/LockerListScreen';
 import LockerDetailScreen from '@/screens/LockerDetailScreen';
 import AddItemScreen from '@/screens/AddItemScreen';
@@ -26,7 +25,7 @@ function ScreenRouter() {
     case 'auth':
       return <AuthScreen />;
     case 'home':
-      return <HomeScreen />;
+      return <LockerListScreen />;
     case 'lockerList':
       return <LockerListScreen />;
     case 'lockerDetail':
