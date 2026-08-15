@@ -170,14 +170,32 @@ export default function SettingsScreen() {
     if (!file) return;
     setImporting(true);
     try {
+      // Explicitly read file via FileReader (more reliable on native webview)
+      const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = () => reject(new Error('Could not read selected file'));
+        reader.readAsArrayBuffer(file);
+      });
+
+      if (arrayBuffer.byteLength === 0) {
+        addToast('Selected file is empty', 'error');
+        return;
+      }
+
       let result;
-      // Detect ZIP by extension or MIME type
-      if (file.name.toLowerCase().endsWith('.zip') || file.type === 'application/zip') {
-        result = await importFullBackupZip(file);
+      const isZip = file.name.toLowerCase().endsWith('.zip') || file.type === 'application/zip';
+
+      if (isZip) {
+        // Pass Blob to JSZip
+        const blob = new Blob([arrayBuffer]);
+        result = await importFullBackupZip(blob);
       } else {
-        const text = await file.text();
+        // Decode as UTF-8 text for JSON
+        const text = new TextDecoder().decode(arrayBuffer);
         result = await importFullBackup(text);
       }
+
       if (result.success) {
         addToast(`Imported ${result.stats?.lockers || 0} lockers, ${result.stats?.items || 0} items, ${result.stats?.photos || 0} photos`);
         await refreshData();
