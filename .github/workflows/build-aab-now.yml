@@ -61,6 +61,11 @@ jobs:
             exit 1
           fi
 
+      - name: Restore clean build.gradle
+        run: |
+          cd android/app
+          git checkout build.gradle
+
       - name: Configure signing and version
         env:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
@@ -68,8 +73,6 @@ jobs:
           ALIAS: ${{ secrets.ALIAS }}
         run: |
           cd android/app
-          # Remove any previously appended signing config to avoid duplicates
-          sed -i '/\/\/ Release signing/,/android.buildTypes.release.signingConfig/d' build.gradle
           # Add signing config
           cat >> build.gradle << 'GRADLEOF'
 
