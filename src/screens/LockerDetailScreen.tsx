@@ -161,8 +161,8 @@ export default function LockerDetailScreen() {
         </div>
       </div>
 
-      {/* Items Grid */}
-      <div className="flex-1 overflow-y-auto px-4 pb-28">
+      {/* Items Grid - scrollable area with safe-area padding so last items aren't hidden by gesture nav */}
+      <div className="flex-1 overflow-y-auto px-4 pb-28" style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}>
         {filteredItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-[#A6B2C2]/40 py-12">
             <Search className="w-12 h-12 mb-4" />
@@ -233,8 +233,8 @@ export default function LockerDetailScreen() {
         )}
       </div>
 
-      {/* FAB */}
-      <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center z-10 pointer-events-none">
+      {/* FAB - positioned with safe-area offset for gesture nav bar */}
+      <div className="absolute left-0 right-0 flex flex-col items-center z-10 pointer-events-none" style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
         <button
           onClick={() => navigate('addItem', { preselectedLockerId: lockerId, editItem: null })}
           aria-label="Add item"
