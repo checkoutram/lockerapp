@@ -148,7 +148,7 @@ export default function ManageLockersScreen() {
       </div>
 
       {/* Locker List */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 pb-6">
+      <div className="flex-1 overflow-y-auto px-4 py-3" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
         {lockers.length === 0 ? (
           <div className="text-center py-12">
             <Building2 className="w-12 h-12 text-[#A6B2C2]/30 mx-auto mb-3" />
