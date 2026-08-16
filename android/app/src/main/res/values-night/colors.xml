@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- vLocker dark theme colors (same as day — app is always dark) -->
+    <color name="colorPrimary">#D6B45C</color>
+    <color name="colorPrimaryDark">#B8943A</color>
+    <color name="colorAccent">#D6B45C</color>
+    <color name="colorBackground">#050A12</color>
+    <color name="colorSurface">#0B1525</color>
+</resources>
