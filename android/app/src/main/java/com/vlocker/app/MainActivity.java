@@ -87,8 +87,10 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onPause() {
         super.onPause();
-        // Trigger auto-lock and clear sensitive data when app goes to background
-        triggerAutoLock();
+        // IMMEDIATELY clear decrypted photo cache when app goes to background
+        // Do NOT lock here — the web layer handles auto-lock with a 20s timeout.
+        // Locking immediately breaks camera/gallery picker flows.
+        clearSensitiveData();
     }
 
     @Override
@@ -96,29 +98,6 @@ public class MainActivity extends BridgeActivity {
         super.onStop();
         // Additional cleanup when app is fully stopped
         clearSensitiveData();
-    }
-
-    /**
-     * Trigger auto-lock by navigating to auth screen via JavaScript.
-     */
-    private void triggerAutoLock() {
-        try {
-            WebView webView = getBridge().getWebView();
-            if (webView != null) {
-                webView.post(() -> {
-                    webView.evaluateJavascript(
-                        "(function() { " +
-                        "  if (window.vlocker && window.vlocker.triggerAutoLock) { " +
-                        "    window.vlocker.triggerAutoLock(); " +
-                        "  } " +
-                        "})();",
-                        null
-                    );
-                });
-            }
-        } catch (Exception e) {
-            // ignore
-        }
     }
 
     /**
