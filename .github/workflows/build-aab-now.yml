@@ -68,20 +68,22 @@ jobs:
           ALIAS: ${{ secrets.ALIAS }}
         run: |
           cd android/app
+          # Remove any previously appended signing config to avoid duplicates
+          sed -i '/\/\/ Release signing/,/android.buildTypes.release.signingConfig/d' build.gradle
           # Add signing config
-          cat >> build.gradle << 'EOF'
+          cat >> build.gradle << 'GRADLEOF'
 
           // Release signing
           android.signingConfigs {
               release {
                   storeFile file("vlocker-release.keystore")
-                  storePassword "'${KEY_STORE_PASSWORD}'"
-                  keyAlias "'${ALIAS}'"
-                  keyPassword "'${KEY_PASSWORD}'"
+                  storePassword "${KEY_STORE_PASSWORD}"
+                  keyAlias "${ALIAS}"
+                  keyPassword "${KEY_PASSWORD}"
               }
           }
           android.buildTypes.release.signingConfig = android.signingConfigs.release
-          EOF
+          GRADLEOF
           echo "=== Version ==="
           grep -E "versionCode|versionName" build.gradle | head -2
 
