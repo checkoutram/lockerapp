@@ -166,7 +166,7 @@ export default function ItemDetailScreen() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {/* Photo Carousel */}
         {allPhotos.length > 0 && (
           <div
@@ -395,7 +395,7 @@ export default function ItemDetailScreen() {
         </div>
 
         {/* Footer */}
-        <div className="px-4 pb-6 pt-2">
+        <div className="px-4 pt-2" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="flex items-center justify-center gap-2 text-xs text-[#5ED6A5]">
             <ShieldCheck className="w-4 h-4" />
             <span>Your data stays on your device — private and secure</span>
