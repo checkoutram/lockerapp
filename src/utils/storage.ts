@@ -130,13 +130,14 @@ export async function deleteItem(id: string): Promise<void> {
   const item = items.find((i) => i.id === id);
 
   if (item) {
+    // Delete ALL photos — both old file:// paths and new relative paths
     for (const photoRef of item.photos || []) {
-      if (photoRef.startsWith('file://')) {
+      if (photoRef && !photoRef.startsWith('data:')) {
         await deletePhoto(photoRef);
       }
     }
     for (const photoRef of item.billPhotos || []) {
-      if (photoRef.startsWith('file://')) {
+      if (photoRef && !photoRef.startsWith('data:')) {
         await deletePhoto(photoRef);
       }
     }
@@ -554,15 +555,22 @@ export async function cleanupOrphanedPhotos(): Promise<{ deleted: number; errors
   if (!isNative) return { deleted: 0, errors: 0 };
 
   try {
-    // Get all referenced photo paths
+    // Get all referenced photo paths (both file:// and relative paths)
     const items = await getItems();
-    const referencedPaths = new Set<string>();
+    const referencedNames = new Set<string>();
     for (const item of items) {
       for (const photo of item.photos || []) {
-        if (photo.startsWith('file://')) referencedPaths.add(photo);
+        if (photo && !photo.startsWith('data:')) {
+          // Extract base name from path: "photos/item_123_456.jpg" or "file://.../item_123_456.jpg" → "item_123_456"
+          const baseName = photo.replace(/^.*[\\/]/, '').replace(/\.(jpg|jpeg|png|enc)$/i, '');
+          if (baseName) referencedNames.add(baseName);
+        }
       }
       for (const photo of item.billPhotos || []) {
-        if (photo.startsWith('file://')) referencedPaths.add(photo);
+        if (photo && !photo.startsWith('data:')) {
+          const baseName = photo.replace(/^.*[\\/]/, '').replace(/\.(jpg|jpeg|png|enc)$/i, '');
+          if (baseName) referencedNames.add(baseName);
+        }
       }
     }
 
@@ -579,10 +587,11 @@ export async function cleanupOrphanedPhotos(): Promise<{ deleted: number; errors
     let errors = 0;
 
     for (const file of files) {
-      // Normalize path for comparison
+      // Extract base name from file: "item_123_456.enc" or "item_123_456.jpg" → "item_123_456"
+      const fileBaseName = file.name.replace(/\.(jpg|jpeg|png|enc|tmp)$/i, '');
       let isReferenced = false;
-      for (const ref of referencedPaths) {
-        if (ref.includes(file.name)) {
+      for (const ref of referencedNames) {
+        if (fileBaseName === ref || fileBaseName.startsWith(ref + '_')) {
           isReferenced = true;
           break;
         }

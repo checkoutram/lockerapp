@@ -23,6 +23,33 @@ async function ensureDir(): Promise<void> {
 }
 
 /**
+ * Normalize a photo path for native plugin use.
+ * - Strips file:// prefix and absolute path (leaves relative path from files dir)
+ * - Strips .jpg/.jpeg/.png extension (migrated photos no longer have these)
+ * - Returns relative path like "photos/item_123_456"
+ */
+function normalizePhotoPath(path: string): string {
+  if (!path) return '';
+
+  // Strip file:// prefix
+  let normalized = path;
+  if (normalized.startsWith('file://')) {
+    normalized = normalized.slice(7); // Remove "file://"
+  }
+
+  // Strip absolute path up to /files/ — native plugin expects path relative to files dir
+  const filesIdx = normalized.indexOf('/files/');
+  if (filesIdx !== -1) {
+    normalized = normalized.slice(filesIdx + 7); // After "/files/"
+  }
+
+  // Strip known image extensions (migrated photos are renamed from .jpg to .enc)
+  normalized = normalized.replace(/\.(jpg|jpeg|png)$/i, '');
+
+  return normalized;
+}
+
+/**
  * Get a displayable URL from a photo reference.
  * If it's a file path, loads and decrypts the photo.
  * If it's already a data URL, returns as-is.
@@ -105,20 +132,25 @@ export async function savePhoto(
  * Returns a data URL.
  */
 export async function loadPhoto(path: string): Promise<string> {
-  // Check memory cache first
+  // Check memory cache first (using original path as key)
   const cached = memoryCache.get(path);
   if (cached) return cached;
 
   if (Capacitor.isNativePlatform()) {
-    // Check if encrypted version exists
-    const encPath = `${path}.enc`;
+    const normalized = normalizePhotoPath(path);
+    if (!normalized) {
+      throw new Error('Invalid photo path: ' + path);
+    }
+
+    // Try encrypted version first: e.g. photos/item_123.enc
+    const encPath = `${normalized}.enc`;
     try {
       const result = await PhotoEncryption.decryptPhoto({ encPath });
       memoryCache.set(path, result.base64);
       return result.base64;
     } catch {
-      // Fallback: try unencrypted .jpg
-      const jpgPath = `${path}.jpg`;
+      // Fallback 1: try unencrypted .jpg (for photos not yet migrated)
+      const jpgPath = `${normalized}.jpg`;
       try {
         const { data } = await Filesystem.readFile({
           path: jpgPath,
@@ -129,7 +161,19 @@ export async function loadPhoto(path: string): Promise<string> {
         memoryCache.set(path, strData);
         return strData;
       } catch {
-        throw new Error('Photo not found: ' + path);
+        // Fallback 2: try original path as-is (web or non-standard paths)
+        try {
+          const { data } = await Filesystem.readFile({
+            path: normalized,
+            directory: Directory.Data,
+            encoding: Encoding.UTF8,
+          });
+          const strData = typeof data === 'string' ? data : '';
+          memoryCache.set(path, strData);
+          return strData;
+        } catch {
+          throw new Error('Photo not found: ' + path);
+        }
       }
     }
   } else {
@@ -151,14 +195,26 @@ export async function deletePhoto(path: string): Promise<void> {
   memoryCache.delete(path);
 
   if (Capacitor.isNativePlatform()) {
+    const normalized = normalizePhotoPath(path);
+    if (!normalized) return;
+
     // Try deleting encrypted version
-    const encPath = `${path}.enc`;
+    const encPath = `${normalized}.enc`;
     try {
       await PhotoEncryption.deleteFile({ filePath: encPath });
-      return;
     } catch {
-      // Fallback: try unencrypted
+      // ignore
     }
+
+    // Also try deleting unencrypted .jpg (cleanup)
+    const jpgPath = `${normalized}.jpg`;
+    try {
+      await PhotoEncryption.deleteFile({ filePath: jpgPath });
+    } catch {
+      // ignore
+    }
+
+    return;
   }
 
   try {

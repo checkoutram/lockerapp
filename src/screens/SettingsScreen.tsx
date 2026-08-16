@@ -13,6 +13,7 @@ import {
   SecureStore,
 } from '@/utils/storage';
 import { APP_NAME } from '@/types';
+import { APP_VERSION } from '@/utils/version';
 
 export default function SettingsScreen() {
   const { goBack, navigate, logout, refreshData } = useApp();
@@ -403,7 +404,7 @@ export default function SettingsScreen() {
 
         {/* Version */}
         <div className="text-center pt-2 pb-2">
-          <p className="text-xs text-[#A6B2C2]">{APP_NAME} v3.0.0</p>
+          <p className="text-xs text-[#A6B2C2]">{APP_NAME} v{APP_VERSION}</p>
         </div>
       </div>
 
