@@ -5,6 +5,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowManager;
 import android.webkit.WebView;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -55,6 +56,9 @@ public class MainActivity extends BridgeActivity {
             window.setNavigationBarColor(Color.TRANSPARENT);
         }
 
+        // Prevent screenshots and screen recordings
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+
         // Ensure the root view applies window insets for safe-area handling
         final View rootView = findViewById(android.R.id.content);
         if (rootView == null) return;
@@ -77,6 +81,66 @@ public class MainActivity extends BridgeActivity {
         WebView webView = getBridge().getWebView();
         if (webView != null) {
             webView.setBackgroundColor(Color.parseColor("#050A12"));
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Trigger auto-lock and clear sensitive data when app goes to background
+        triggerAutoLock();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Additional cleanup when app is fully stopped
+        clearSensitiveData();
+    }
+
+    /**
+     * Trigger auto-lock by navigating to auth screen via JavaScript.
+     */
+    private void triggerAutoLock() {
+        try {
+            WebView webView = getBridge().getWebView();
+            if (webView != null) {
+                webView.post(() -> {
+                    webView.evaluateJavascript(
+                        "(function() { " +
+                        "  if (window.vlocker && window.vlocker.triggerAutoLock) { " +
+                        "    window.vlocker.triggerAutoLock(); " +
+                        "  } " +
+                        "})();",
+                        null
+                    );
+                });
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    /**
+     * Clear sensitive decrypted data from memory.
+     */
+    private void clearSensitiveData() {
+        try {
+            WebView webView = getBridge().getWebView();
+            if (webView != null) {
+                webView.post(() -> {
+                    webView.evaluateJavascript(
+                        "(function() { " +
+                        "  if (window.vlocker && window.vlocker.clearSensitiveData) { " +
+                        "    window.vlocker.clearSensitiveData(); " +
+                        "  } " +
+                        "})();",
+                        null
+                    );
+                });
+            }
+        } catch (Exception e) {
+            // ignore
         }
     }
 }

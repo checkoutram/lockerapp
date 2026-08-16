@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import type { ScreenName, Locker, LockerItem, AppAlert } from '@/types';
 import { SecureStore, setSessionActive, AsyncStorage, getLockers, getItems, runV3Migration } from '@/utils/storage';
+import { isMigrationDone } from '@/utils/photoStorage';
+import { Capacitor } from '@capacitor/core';
 
 interface AppContextType {
   // Navigation & auth (original)
@@ -73,6 +75,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsAuthenticated(false);
       await runV3Migration();
       await refreshData();
+
+      // Check if photo encryption migration is needed (native only)
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const done = await isMigrationDone();
+          if (!done) {
+            setScreen('migrating');
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
     };
     init();
   }, [checkPinExists, refreshData]);

@@ -47,7 +47,8 @@ export type ScreenName =
   | 'addItem'
   | 'itemDetail'
   | 'settings'
-  | 'manageLockers';
+  | 'manageLockers'
+  | 'migrating';
 
 export type MainCategory =
   | 'Gold'

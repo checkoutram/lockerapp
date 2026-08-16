@@ -3,6 +3,8 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { AppProvider, useApp } from '@/context/AppContext';
 import { cleanupOrphanedPhotos } from '@/utils/storage';
+import { clearPhotoCache } from '@/utils/photoStorage';
+import { setAutoLockCallback, removeAutoLockCallback } from '@/main';
 import { X, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import SplashScreen from '@/screens/SplashScreen';
 import SetupScreen from '@/screens/SetupScreen';
@@ -13,6 +15,7 @@ import AddItemScreen from '@/screens/AddItemScreen';
 import ItemDetailScreen from '@/screens/ItemDetailScreen';
 import SettingsScreen from '@/screens/SettingsScreen';
 import ManageLockersScreen from '@/screens/ManageLockersScreen';
+import MigrationScreen from '@/screens/MigrationScreen';
 
 function ScreenRouter() {
   const { screen } = useApp();
@@ -38,6 +41,8 @@ function ScreenRouter() {
       return <SettingsScreen />;
     case 'manageLockers':
       return <ManageLockersScreen />;
+    case 'migrating':
+      return <MigrationScreen />;
     default:
       return <SplashScreen />;
   }
@@ -53,6 +58,8 @@ function AppStateMonitor() {
     const handleVisibilityChange = () => {
       if (document.hidden) {
         hiddenTime = Date.now();
+        // Clear decrypted photo cache when app goes to background
+        clearPhotoCache();
         // Clean up orphaned photos when app goes to background
         cleanupOrphanedPhotos().catch(() => {});
       } else if (hiddenTime && isAuthenticated) {
@@ -65,8 +72,18 @@ function AppStateMonitor() {
       }
     };
 
+    // Register native auto-lock callback
+    setAutoLockCallback(() => {
+      clearPhotoCache();
+      setAuthenticated(false);
+      navigate('auth');
+    });
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      removeAutoLockCallback();
+    };
   }, [isAuthenticated, setAuthenticated, navigate, screen]);
 
   // Hardware back button handler

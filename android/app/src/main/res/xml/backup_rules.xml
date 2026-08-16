@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude all photos directory -->
+    <exclude domain="file" path="photos/" />
+    <!-- Exclude shared preferences that may contain sensitive data -->
+    <exclude domain="sharedpref" path="CapacitorStorage.xml" />
+    <exclude domain="sharedpref" path="vlocker_enc_prefs.xml" />
+    <!-- Exclude backup file itself -->
+    <exclude domain="file" path="vlocker_backup_enc.json" />
+</full-backup-content>
