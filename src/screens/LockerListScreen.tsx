@@ -123,7 +123,7 @@ export default function LockerListScreen() {
       </div>
 
       {/* Locker List */}
-      <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-5 space-y-3" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}>
         {lockers.map((locker) => (
           <button
             key={locker.id}
@@ -212,7 +212,7 @@ export default function LockerListScreen() {
       </div>
 
       {/* Security Footer */}
-      <div className="px-5 pb-5">
+      <div className="px-5" style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))" }}>
         <div className="bg-[#0B1525] rounded-2xl p-4 border border-[#1D344D]/40 flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-[#D6B45C]/10 flex items-center justify-center flex-shrink-0">
             <Shield className="w-6 h-6 text-[#D6B45C]" />
