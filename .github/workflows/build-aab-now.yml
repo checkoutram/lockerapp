@@ -88,8 +88,10 @@ jobs:
       - name: Clean build
         run: |
           cd android
-          ls -la gradlew
-          ./gradlew clean --no-daemon --stacktrace
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+          cat gradlew | head -3
+          ./gradlew clean --no-daemon || echo "Clean failed, continuing..."
 
       - name: Build Release AAB
         run: |
