@@ -368,37 +368,50 @@ export default function AuthScreen() {
 
   const renderKeypad = (
     onInput: (v: string) => void,
-    onBackspace: () => void
+    onBackspace: () => void,
+    currentPin: string,
+    onSubmit?: () => void
   ) => (
-    <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full max-w-[300px] mb-6">
-      {keypadNumbers.map((num) => (
-        <button key={num} onClick={() => onInput(num)}
+    <div className="flex flex-col items-center w-full max-w-[300px]">
+      <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full mb-5">
+        {keypadNumbers.map((num) => (
+          <button key={num} onClick={() => onInput(num)}
+            className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
+          >{num}</button>
+        ))}
+        {/* Fingerprint button — shown when biometric enabled */}
+        {biometricEnabled ? (
+          <button
+            onClick={handleBiometric}
+            className="w-[72px] h-[72px] mx-auto rounded-full bg-transparent border-2 border-[#D6B45C]/40 text-[#D6B45C] active:bg-[#D6B45C]/10 active:scale-95 transition-all flex items-center justify-center"
+            aria-label="Use biometric"
+          >
+            <Fingerprint size={24} />
+          </button>
+        ) : (
+          <div className="w-[72px] h-[72px]" />
+        )}
+        <button onClick={() => onInput('0')}
           className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
-        >{num}</button>
-      ))}
-      {/* Fingerprint button — shown when biometric enabled */}
-      {biometricEnabled ? (
-        <button
-          onClick={handleBiometric}
+        >0</button>
+        <button onClick={onBackspace}
           className="w-[72px] h-[72px] mx-auto rounded-full bg-transparent border-2 border-[#D6B45C]/40 text-[#D6B45C] active:bg-[#D6B45C]/10 active:scale-95 transition-all flex items-center justify-center"
-          aria-label="Use biometric"
         >
-          <Fingerprint size={24} />
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" />
+            <line x1="18" y1="9" x2="12" y2="15" /><line x1="12" y1="9" x2="18" y2="15" />
+          </svg>
         </button>
-      ) : (
-        <div className="w-[72px] h-[72px]" />
+      </div>
+      {/* Enter button — shown when 6 digits entered */}
+      {onSubmit && currentPin.length === 6 && (
+        <button
+          onClick={onSubmit}
+          className="w-full max-w-[260px] py-3.5 rounded-2xl bg-[#D6B45C] text-[#081321] text-base font-bold active:bg-[#C4A34E] active:scale-95 transition-all shadow-lg shadow-[#D6B45C]/20 mb-2"
+        >
+          Enter
+        </button>
       )}
-      <button onClick={() => onInput('0')}
-        className="w-[72px] h-[72px] mx-auto rounded-full bg-[#101F32] text-2xl font-medium text-[#F7F5EF] active:bg-[#1D344D] active:scale-95 transition-all flex items-center justify-center shadow-sm"
-      >0</button>
-      <button onClick={onBackspace}
-        className="w-[72px] h-[72px] mx-auto rounded-full bg-transparent border-2 border-[#D6B45C]/40 text-[#D6B45C] active:bg-[#D6B45C]/10 active:scale-95 transition-all flex items-center justify-center"
-      >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z" />
-          <line x1="18" y1="9" x2="12" y2="15" /><line x1="12" y1="9" x2="18" y2="15" />
-        </svg>
-      </button>
     </div>
   );
 
