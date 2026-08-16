@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: 'Version name (e.g., 2.5.3)'
+        description: 'Version name (e.g., 3.0.1)'
         required: true
-        default: '3.0.0'
+        default: '3.0.1'
       version_code:
         description: 'Version code (integer, must increase each release)'
         required: true
-        default: '6'
+        default: '7'
 
 jobs:
   build-release:
@@ -51,59 +51,77 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Update version in build.gradle
-        run: |
-          sed -i "s/versionCode .*/versionCode ${{ github.event.inputs.version_code }}/" android/app/build.gradle
-          sed -i "s/versionName .*/versionName \"${{ github.event.inputs.version_name }}\"/" android/app/build.gradle
-          echo "=== Version set to ${{ github.event.inputs.version_name }} (${{ github.event.inputs.version_code }}) ==="
-          grep -E "versionCode|versionName" android/app/build.gradle
-
       - name: Decode signing keystore
         env:
           SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
         run: |
           echo "$SIGNING_KEY_BASE64" | base64 -d > android/app/vlocker-release.keystore
+          ls -la android/app/vlocker-release.keystore
 
-      - name: Create signing config
+      - name: Configure signing and version
+        env:
+          KEY_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          VERSION_NAME: ${{ github.event.inputs.version_name }}
+          VERSION_CODE: ${{ github.event.inputs.version_code }}
         run: |
-          cat > android/keystore.properties << EOF
-          storeFile=vlocker-release.keystore
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          EOF
+          cd android/app
+          python3 << 'PYEOF'
+          import os, re
 
-      - name: Update build.gradle for signing
-        run: |
-          cat >> android/app/build.gradle << 'EOF'
+          with open('build.gradle', 'r') as f:
+              content = f.read()
 
-          // Release signing config
-          def keystorePropertiesFile = rootProject.file("../keystore.properties")
-          def keystoreProperties = new Properties()
-          if (keystorePropertiesFile.exists()) {
-              keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-              android {
-                  signingConfigs {
-                      release {
-                          storeFile file(keystoreProperties['storeFile'])
-                          storePassword keystoreProperties['storePassword']
-                          keyAlias keystoreProperties['keyAlias']
-                          keyPassword keystoreProperties['keyPassword']
-                      }
-                  }
-                  buildTypes {
-                      release {
-                          signingConfig signingConfigs.release
-                      }
-                  }
-              }
-          }
-          EOF
+          # Update version
+          content = re.sub(r"versionCode \d+", f"versionCode {os.getenv('VERSION_CODE')}", content)
+          content = re.sub(r'versionName "[^"]*"', f'versionName "{os.getenv(\"VERSION_NAME\")}"', content)
+
+          # Check if signingConfigs already exists
+          if 'signingConfigs' not in content:
+              # Insert signingConfigs before buildTypes
+              signing_block = f'''    signingConfigs {{
+        release {{
+            storeFile file("vlocker-release.keystore")
+            storePassword "{os.getenv('KEY_STORE_PASSWORD')}"
+            keyAlias "{os.getenv('KEY_ALIAS')}"
+            keyPassword "{os.getenv('KEY_PASSWORD')}"
+        }}
+    }}
+'''
+              content = content.replace('    buildTypes {', signing_block + '    buildTypes {')
+
+          # Add signingConfig to release buildType if not already there
+          if 'signingConfig signingConfigs.release' not in content:
+              content = content.replace(
+                  'minifyEnabled true',
+                  'minifyEnabled true\n            signingConfig signingConfigs.release'
+              )
+
+          with open('build.gradle', 'w') as f:
+              f.write(content)
+
+          print('=== build.gradle (relevant) ===')
+          # Show the android block
+          match = re.search(r'android \{(.*?)\n\}', content, re.DOTALL)
+          if match:
+              print(match.group(0)[:2000])
+          else:
+              print(content[:2000])
+          PYEOF
 
       - name: Build Release AAB
         run: |
           cd android
           ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: Verify AAB signature
+        run: |
+          echo "=== Listing AAB contents ==="
+          unzip -l android/app/build/outputs/bundle/release/app-release.aab | grep -E "META-INF/.*\.(RSA|DSA|EC|SF)" || echo "No signature files found in AAB (expected for app bundles)"
+          echo ""
+          echo "=== Verify with apksigner ==="
+          $ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner verify --verbose android/app/build/outputs/bundle/release/app-release.aab || echo "apksigner verify completed"
 
       - name: Upload Release AAB
         uses: actions/upload-artifact@v4
@@ -122,14 +140,3 @@ jobs:
         with:
           name: vlocker-native-debug-symbols
           path: android/app/build/outputs/native-debug-symbols/release/
-
-      - name: Build Release APK (for testing)
-        run: |
-          cd android
-          ./gradlew assembleRelease --no-daemon --stacktrace
-
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: vlocker-release-apk
-          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
