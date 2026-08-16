@@ -89,8 +89,8 @@ export default function LockerListScreen() {
 
   return (
     <div className="h-full w-full bg-[#050A12] flex flex-col relative">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-5 pb-3">
+      {/* Header - safe-area aware for edge-to-edge */}
+      <div className="flex items-center justify-between px-4 pb-3" style={{ paddingTop: "calc(1.25rem + env(safe-area-inset-top, 0px))" }}>
         <button
           onClick={() => setMenuOpen(true)}
           className="p-2 -ml-2 rounded-full active:bg-white/5"
