@@ -263,7 +263,7 @@ export default function SettingsScreen() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 pb-8">
+      <div className="flex-1 overflow-y-auto px-5 py-4" style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}>
         {/* Security */}
         <div className="mb-6">
           <h3 className="text-xs text-[#A6B2C2] uppercase tracking-wider mb-3 px-1">Security</h3>
