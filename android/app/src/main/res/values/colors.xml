@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- vLocker brand colors -->
+    <color name="colorPrimary">#D6B45C</color>
+    <color name="colorPrimaryDark">#B8943A</color>
+    <color name="colorAccent">#D6B45C</color>
+    <!-- Dark navy background — matches app theme #050A12 -->
+    <color name="colorBackground">#050A12</color>
+    <color name="colorSurface">#0B1525</color>
+</resources>
