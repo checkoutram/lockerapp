@@ -212,7 +212,7 @@ export default function SetupScreen() {
 
   return (
     <div className={`h-full w-full bg-[#050A12] flex flex-col relative transition-all duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}>
-      <div className="flex-1 flex flex-col items-center px-6 pt-12 w-full max-w-md mx-auto">
+      <div className="flex-1 flex flex-col items-center px-6 w-full max-w-md mx-auto" style={{ paddingTop: "calc(3rem + env(safe-area-inset-top, 0px))" }}>
         {/* Icon */}
         <div className="w-16 h-16 rounded-2xl bg-[#D6B45C]/10 flex items-center justify-center mb-4">
           <img src="/vlocker-icon.png" alt={APP_NAME} className="w-12 h-12 object-contain" />
@@ -309,7 +309,7 @@ export default function SetupScreen() {
       </div>
 
       {/* Privacy Note */}
-      <div className="pb-6 pt-2 flex justify-center">
+      <div className="pt-2 flex justify-center" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
         <div className="flex items-center gap-1.5 text-[10px] text-[#5ED6A5]/80 bg-[#123D32]/60 px-3 py-1.5 rounded-full border border-[#36B37E]/30">
           <Shield className="w-3 h-3" />
           <span>Your data stays on your device - private and secure</span>
