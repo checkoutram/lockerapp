@@ -50,12 +50,14 @@ jobs:
 
       - name: Decode and copy signing keystore
         env:
-          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > android/app/vlocker-release.keystore
+          if [ -n "$SIGNING_KEY_BASE64" ]; then
+            echo "$SIGNING_KEY_BASE64" | base64 -d > android/app/vlocker-release.keystore
+            echo "Keystore decoded successfully"
+            ls -la android/app/vlocker-release.keystore
           else
-            echo "No KEYSTORE_B64 secret found"
+            echo "No SIGNING_KEY_BASE64 secret found"
             exit 1
           fi
 
@@ -67,15 +69,15 @@ jobs:
         run: |
           cd android/app
           # Add signing config
-          cat >> build.gradle << EOF
+          cat >> build.gradle << 'EOF'
 
           // Release signing
           android.signingConfigs {
               release {
                   storeFile file("vlocker-release.keystore")
-                  storePassword "${KEY_STORE_PASSWORD}"
-                  keyAlias "${ALIAS}"
-                  keyPassword "${KEY_PASSWORD}"
+                  storePassword "'${KEY_STORE_PASSWORD}'"
+                  keyAlias "'${ALIAS}'"
+                  keyPassword "'${KEY_PASSWORD}'"
               }
           }
           android.buildTypes.release.signingConfig = android.signingConfigs.release
