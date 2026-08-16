@@ -152,8 +152,8 @@ export default function ItemDetailScreen() {
 
   return (
     <div className="h-full flex flex-col bg-[#050A12] relative">
-      {/* Header */}
-      <div className="shrink-0 flex items-center justify-between px-4 pt-5 pb-3">
+      {/* Header - safe-area aware for edge-to-edge */}
+      <div className="shrink-0 flex items-center justify-between px-4 pb-3" style={{ paddingTop: "calc(1.25rem + env(safe-area-inset-top, 0px))" }}>
         <button onClick={goBack} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
           <ChevronLeft className="w-5 h-5 text-[#D6B45C]" />
         </button>
@@ -411,8 +411,8 @@ export default function ItemDetailScreen() {
           onTouchMove={handleViewerTouchMove}
           onTouchEnd={handleViewerTouchEnd}
         >
-          {/* Viewer Header */}
-          <div className="shrink-0 flex items-center justify-between px-4 pt-5 pb-3">
+          {/* Viewer Header - safe-area aware for edge-to-edge */}
+          <div className="shrink-0 flex items-center justify-between px-4 pb-3" style={{ paddingTop: 'calc(1.25rem + env(safe-area-inset-top, 0px))' }}>
             <button
               onClick={closeViewer}
               className="p-2 -ml-2 rounded-full active:bg-white/10"
