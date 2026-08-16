@@ -250,8 +250,8 @@ export default function SettingsScreen() {
         ))}
       </div>
 
-      {/* Header */}
-      <div className="flex items-center px-4 pt-5 pb-3 border-b border-[#1D344D]/50">
+      {/* Header - safe-area aware for edge-to-edge */}
+      <div className="flex items-center px-4 pb-3 border-b border-[#1D344D]/50" style={{ paddingTop: "calc(1.25rem + env(safe-area-inset-top, 0px))" }}>
         <button onClick={goBack} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
           <ChevronLeft className="w-5 h-5 text-[#D6B45C]" />
         </button>
