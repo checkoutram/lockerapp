@@ -68,22 +68,37 @@ jobs:
           ALIAS: ${{ secrets.ALIAS }}
         run: |
           cd android/app
-          # Add signing config
-          cat >> build.gradle << 'GRADLEOF'
+          python3 << 'PYEOF'
+          import re
 
-          // Release signing
-          android.signingConfigs {
-              release {
-                  storeFile file("vlocker-release.keystore")
-                  storePassword "${KEY_STORE_PASSWORD}"
-                  keyAlias "${ALIAS}"
-                  keyPassword "${KEY_PASSWORD}"
-              }
-          }
-          android.buildTypes.release.signingConfig = android.signingConfigs.release
-          GRADLEOF
-          echo "=== Version ==="
-          grep -E "versionCode|versionName" build.gradle | head -2
+          with open('build.gradle', 'r') as f:
+              content = f.read()
+
+          # Insert signingConfigs before buildTypes block
+          signing_block = '''    signingConfigs {
+        release {
+            storeFile file("vlocker-release.keystore")
+            storePassword "''' + __import__('os').getenv('KEY_STORE_PASSWORD') + '''"
+            keyAlias "''' + __import__('os').getenv('ALIAS') + '''"
+            keyPassword "''' + __import__('os').getenv('KEY_PASSWORD') + '''"
+        }
+    }
+'''
+          # Find buildTypes { and insert signingConfigs before it
+          content = content.replace('    buildTypes {', signing_block + '    buildTypes {')
+
+          # Add signingConfig inside release buildType (after minifyEnabled)
+          content = content.replace(
+              'minifyEnabled true\n            shrinkResources true',
+              'minifyEnabled true\n            signingConfig signingConfigs.release\n            shrinkResources true'
+          )
+
+          with open('build.gradle', 'w') as f:
+              f.write(content)
+          print("Signing config inserted successfully")
+          PYEOF
+          echo "=== build.gradle (relevant parts) ==="
+          grep -A 30 "android {" build.gradle | head -35
 
       - name: Clean build
         run: |
