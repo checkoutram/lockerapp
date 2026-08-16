@@ -113,8 +113,8 @@ export default function LockerDetailScreen() {
 
   return (
     <div className="h-full flex flex-col bg-[#050A12]">
-      {/* Header */}
-      <div className="shrink-0 px-4 pt-5 pb-3">
+      {/* Header - safe-area aware for edge-to-edge */}
+      <div className="shrink-0 px-4 pt-5 pb-3" style={{ paddingTop: 'calc(1.25rem + env(safe-area-inset-top, 0px))' }}>
         <div className="flex items-center gap-3 mb-1">
           <button onClick={() => navigate('lockerList')} aria-label="Back" className="p-2 -ml-2 rounded-full active:bg-white/5">
             <ChevronLeft className="w-5 h-5 text-[#F7F5EF]" />
