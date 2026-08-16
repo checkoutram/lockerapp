@@ -279,7 +279,7 @@ export default function AddItemScreen() {
       </div>
 
       {/* Form */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 pb-36">
+      <div className="flex-1 overflow-y-auto px-5 py-4" style={{ paddingBottom: "calc(9rem + env(safe-area-inset-bottom, 0px))" }}>
         {/* Locker Selector */}
         {lockers.length > 1 && (
           <div className="mb-5" ref={lockerDropdownRef}>
@@ -521,7 +521,7 @@ export default function AddItemScreen() {
       )}
 
       {/* Save Button */}
-      <div className="shrink-0 p-5 bg-gradient-to-t from-[#050A12] via-[#050A12] to-transparent z-10">
+      <div className="shrink-0 px-5 pt-5 bg-gradient-to-t from-[#050A12] via-[#050A12] to-transparent z-10" style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom, 0px))" }}>
         <button onClick={handleSave} disabled={isSaving}
           className={`w-full py-4 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
             !isSaving
