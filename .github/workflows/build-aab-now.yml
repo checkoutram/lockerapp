@@ -93,7 +93,9 @@ jobs:
       - name: Clean build
         run: |
           cd android
-          bash gradlew clean --no-daemon
+          chmod +x gradlew
+          ls -la gradlew
+          bash gradlew clean --no-daemon --stacktrace
 
       - name: Build Release AAB
         run: |
