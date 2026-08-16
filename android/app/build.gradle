@@ -71,14 +71,3 @@ try {
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
-
-// Release signing
-android.signingConfigs {
-    release {
-        storeFile file("vlocker-release.keystore")
-        storePassword "vlocker2024"
-        keyAlias "vlocker"
-        keyPassword "vlocker2024"
-    }
-}
-android.buildTypes.release.signingConfig = android.signingConfigs.release
