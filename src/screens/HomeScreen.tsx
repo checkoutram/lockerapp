@@ -108,7 +108,7 @@ export default function HomeScreen() {
       </div>
 
       {/* Lockers List */}
-      <div className="flex-1 overflow-y-auto px-5 pb-24">
+      <div className="flex-1 overflow-y-auto px-5" style={{ paddingBottom: "calc(6rem + env(safe-area-inset-bottom, 0px))" }}>
         {!loaded ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -197,7 +197,7 @@ export default function HomeScreen() {
           }
         }}
         aria-label="Add Item"
-        className="absolute bottom-6 right-5 w-14 h-14 rounded-full bg-[#D6B45C] flex items-center justify-center shadow-lg active:scale-95 transition-transform z-10 animate-pulse-gold"
+        className="absolute right-5 w-14 h-14 rounded-full bg-[#D6B45C] flex items-center justify-center shadow-lg active:scale-95 transition-transform z-10 animate-pulse-gold" style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}
       >
         <Plus className="w-6 h-6 text-[#081321]" strokeWidth={2.5} />
       </button>
