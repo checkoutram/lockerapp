@@ -492,7 +492,7 @@ export default function AuthScreen() {
               <>
                 {renderPinDots(pin)}
 
-                {renderKeypad(handlePinInput, handleBackspace)}
+                {renderKeypad(handlePinInput, handleBackspace, pin, () => doSubmit(pinRef.current))}
               </>
             )}
 
@@ -543,7 +543,7 @@ export default function AuthScreen() {
         ) : forgotStep === 'createPin' ? (
           <>
             {renderPinDots(newPin)}
-            {renderKeypad(handleNewPinInput, handleNewPinBackspace)}
+            {renderKeypad(handleNewPinInput, handleNewPinBackspace, newPin)}
             <button onClick={handleCancelForgot}
               className="text-sm text-[#A6B2C2] hover:text-[#D6B45C] transition-colors mt-2"
             >
@@ -553,7 +553,7 @@ export default function AuthScreen() {
         ) : forgotStep === 'confirmPin' ? (
           <>
             {renderPinDots(confirmNewPin)}
-            {renderKeypad(handleConfirmNewPinInput, handleConfirmNewPinBackspace)}
+            {renderKeypad(handleConfirmNewPinInput, handleConfirmNewPinBackspace, confirmNewPin)}
             <button onClick={handleCancelForgot}
               className="text-sm text-[#A6B2C2] hover:text-[#D6B45C] transition-colors mt-2"
             >
