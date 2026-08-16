@@ -85,14 +85,14 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         super.onPause();
         // Trigger auto-lock and clear sensitive data when app goes to background
         triggerAutoLock();
     }
 
     @Override
-    protected void onStop() {
+    public void onStop() {
         super.onStop();
         // Additional cleanup when app is fully stopped
         clearSensitiveData();
