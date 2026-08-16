@@ -23,24 +23,9 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: 11076708
-          packages: 'platforms;android-36 build-tools;36.0.0 platform-tools'
-
-      - name: Accept licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: gradle-${{ runner.os }}-
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm ci
 
       - name: Build webapp
         run: npm run build
@@ -48,46 +33,43 @@ jobs:
       - name: Sync Capacitor Android
         run: npx cap sync android
 
-      - name: Decode and copy signing keystore
+      - name: Decode signing keystore
         env:
           SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
         run: |
-          if [ -n "$SIGNING_KEY_BASE64" ]; then
-            echo "$SIGNING_KEY_BASE64" | base64 -d > android/app/vlocker-release.keystore
-            echo "Keystore decoded successfully"
-            ls -la android/app/vlocker-release.keystore
-          else
-            echo "No SIGNING_KEY_BASE64 secret found"
-            exit 1
-          fi
+          echo "$SIGNING_KEY_BASE64" | base64 -d > android/app/vlocker-release.keystore
+          ls -la android/app/vlocker-release.keystore
 
       - name: Configure signing and version
         env:
-          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          ALIAS: ${{ secrets.ALIAS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           cd android/app
           python3 << 'PYEOF'
-          import re
+          import os, re
 
           with open('build.gradle', 'r') as f:
               content = f.read()
 
-          # Insert signingConfigs before buildTypes block
-          signing_block = '''    signingConfigs {
-        release {
+          # Update version
+          content = content.replace('versionCode 1', 'versionCode 7')
+          content = content.replace('versionName "1.0"', 'versionName "3.0.1"')
+
+          # Insert signingConfigs before buildTypes
+          signing_block = f'''    signingConfigs {{
+        release {{
             storeFile file("vlocker-release.keystore")
-            storePassword "''' + __import__('os').getenv('KEY_STORE_PASSWORD') + '''"
-            keyAlias "''' + __import__('os').getenv('ALIAS') + '''"
-            keyPassword "''' + __import__('os').getenv('KEY_PASSWORD') + '''"
-        }
-    }
+            storePassword "{os.getenv('KEY_STORE_PASSWORD')}"
+            keyAlias "{os.getenv('KEY_ALIAS')}"
+            keyPassword "{os.getenv('KEY_PASSWORD')}"
+        }}
+    }}
 '''
-          # Find buildTypes { and insert signingConfigs before it
           content = content.replace('    buildTypes {', signing_block + '    buildTypes {')
 
-          # Add signingConfig inside release buildType (after minifyEnabled)
+          # Add signingConfig to release buildType
           content = content.replace(
               'minifyEnabled true\n            shrinkResources true',
               'minifyEnabled true\n            signingConfig signingConfigs.release\n            shrinkResources true'
@@ -97,35 +79,17 @@ jobs:
               f.write(content)
           print("Signing config inserted successfully")
           PYEOF
-          echo "=== build.gradle (relevant parts) ==="
+          echo "=== build.gradle (relevant) ==="
           grep -A 30 "android {" build.gradle | head -35
-
-      - name: Clean build
-        run: |
-          cd android
-          sed -i 's/\r$//' gradlew
-          chmod +x gradlew
-          cat gradlew | head -3
-          ./gradlew clean --no-daemon || echo "Clean failed, continuing..."
 
       - name: Build Release AAB
         run: |
           cd android
-          bash gradlew bundleRelease --no-daemon --stacktrace
+          chmod +x gradlew
+          bash gradlew bundleRelease --no-daemon
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
-          name: vlocker-signed-aab
+          name: vlocker-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
-
-      - name: Build Release APK (bonus)
-        run: |
-          cd android
-          bash gradlew assembleRelease --no-daemon --stacktrace
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: vlocker-signed-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
