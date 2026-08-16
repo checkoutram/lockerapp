@@ -5,6 +5,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
+import android.webkit.WebView;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -70,6 +71,12 @@ public class MainActivity extends BridgeActivity {
             // Clear LIGHT_STATUS_BAR flag => white icons on dark background
             flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
             window.getDecorView().setSystemUiVisibility(flags);
+        }
+
+        // Set WebView background to dark to prevent white flash before app loads
+        WebView webView = getBridge().getWebView();
+        if (webView != null) {
+            webView.setBackgroundColor(Color.parseColor("#050A12"));
         }
     }
 }
