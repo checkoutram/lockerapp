@@ -34,14 +34,14 @@ import javax.crypto.spec.SecretKeySpec;
 public class PhotoEncryptionPlugin extends Plugin {
 
     private static final String ANDROID_KEYSTORE = "AndroidKeyStore";
-    private static final String KEY_ALIAS = "vlocker_master_key_v1";
+    private static final String KEY_ALIAS = "vlocker_master_key_v2";
     private static final String AES_GCM = "AES/GCM/NoPadding";
     private static final int GCM_TAG_LENGTH = 128;
     private static final int GCM_IV_LENGTH = 12;
     private static final int AES_KEY_SIZE = 256;
 
     private static final String PREFS_NAME = "vlocker_enc_prefs";
-    private static final String PREF_MIGRATION_DONE = "migration_done_v1";
+    private static final String PREF_MIGRATION_DONE = "migration_done_v2";
     private static final String PREF_BACKUP_SALT = "backup_salt";
     private static final String PREF_WRAPPED_KEY = "wrapped_master_key";
 
@@ -55,11 +55,20 @@ public class PhotoEncryptionPlugin extends Plugin {
 
     /**
      * Generate or retrieve the master AES-256 key from Android Keystore.
+     * Uses a new alias (v2) because v1 had setRandomizedEncryptionRequired(true)
+     * which blocks caller-provided IVs.
      */
     private synchronized void ensureMasterKeyExists() {
         try {
             KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
             keyStore.load(null);
+
+            // Delete old v1 key if it exists (it had incompatible settings)
+            if (keyStore.containsAlias("vlocker_master_key_v1")) {
+                keyStore.deleteEntry("vlocker_master_key_v1");
+                Log.i("PhotoEncryption", "Deleted old v1 key");
+            }
+
             if (!keyStore.containsAlias(KEY_ALIAS)) {
                 KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(
                         KEY_ALIAS,
@@ -67,13 +76,12 @@ public class PhotoEncryptionPlugin extends Plugin {
                         .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                         .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                         .setKeySize(AES_KEY_SIZE)
-                        .setRandomizedEncryptionRequired(true)
                         .build();
 
                 KeyGenerator keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE);
                 keyGenerator.init(spec);
                 keyGenerator.generateKey();
-                Log.i("PhotoEncryption", "Master key generated in Android Keystore");
+                Log.i("PhotoEncryption", "Master key v2 generated in Android Keystore");
             }
         } catch (Exception e) {
             Log.e("PhotoEncryption", "Failed to ensure master key", e);
@@ -93,102 +101,111 @@ public class PhotoEncryptionPlugin extends Plugin {
     /**
      * Encrypt photo bytes and save to .enc file.
      * Format: [12-byte IV][ciphertext + 128-bit GCM auth tag]
+     * Runs on background thread to avoid ANR.
      */
     @PluginMethod
     public void encryptPhoto(PluginCall call) {
-        try {
-            String inputPath = call.getString("inputPath");
-            String outputPath = call.getString("outputPath");
-            if (inputPath == null || outputPath == null) {
-                call.reject("Missing inputPath or outputPath");
-                return;
+        new Thread(() -> {
+            try {
+                String inputPath = call.getString("inputPath");
+                String outputPath = call.getString("outputPath");
+                if (inputPath == null || outputPath == null) {
+                    call.reject("Missing inputPath or outputPath");
+                    return;
+                }
+
+                // Read input file
+                File inputFile = new File(context.getFilesDir(), inputPath);
+                byte[] plainBytes = readFile(inputFile);
+
+                // Encrypt
+                byte[] iv = new byte[GCM_IV_LENGTH];
+                new SecureRandom().nextBytes(iv);
+
+                Cipher cipher = Cipher.getInstance(AES_GCM);
+                GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
+                cipher.init(Cipher.ENCRYPT_MODE, getMasterKey(), spec);
+                byte[] cipherBytes = cipher.doFinal(plainBytes);
+
+                // Write: IV + ciphertext
+                File outputFile = new File(context.getFilesDir(), outputPath);
+                outputFile.getParentFile().mkdirs();
+                try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+                    fos.write(iv);
+                    fos.write(cipherBytes);
+                }
+
+                // Verify by decrypting immediately
+                byte[] verifyBytes = decryptFile(outputFile);
+                if (!Arrays.equals(plainBytes, verifyBytes)) {
+                    outputFile.delete();
+                    call.reject("Encryption verification failed");
+                    return;
+                }
+
+                JSObject result = new JSObject();
+                result.put("success", true);
+                result.put("outputPath", outputPath);
+                call.resolve(result);
+
+            } catch (Exception e) {
+                Log.e("PhotoEncryption", "encryptPhoto failed", e);
+                call.reject("Encryption failed: " + e.getMessage());
             }
-
-            // Read input file
-            File inputFile = new File(context.getFilesDir(), inputPath);
-            byte[] plainBytes = readFile(inputFile);
-
-            // Encrypt
-            byte[] iv = new byte[GCM_IV_LENGTH];
-            new SecureRandom().nextBytes(iv);
-
-            Cipher cipher = Cipher.getInstance(AES_GCM);
-            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
-            cipher.init(Cipher.ENCRYPT_MODE, getMasterKey(), spec);
-            byte[] cipherBytes = cipher.doFinal(plainBytes);
-
-            // Write: IV + ciphertext
-            File outputFile = new File(context.getFilesDir(), outputPath);
-            outputFile.getParentFile().mkdirs();
-            try (FileOutputStream fos = new FileOutputStream(outputFile)) {
-                fos.write(iv);
-                fos.write(cipherBytes);
-            }
-
-            // Verify by decrypting immediately
-            byte[] verifyBytes = decryptFile(outputFile);
-            if (!Arrays.equals(plainBytes, verifyBytes)) {
-                outputFile.delete();
-                call.reject("Encryption verification failed");
-                return;
-            }
-
-            JSObject result = new JSObject();
-            result.put("success", true);
-            result.put("outputPath", outputPath);
-            call.resolve(result);
-
-        } catch (Exception e) {
-            Log.e("PhotoEncryption", "encryptPhoto failed", e);
-            call.reject("Encryption failed: " + e.getMessage());
-        }
+        }).start();
     }
 
     /**
      * Decrypt .enc file and return base64 image data.
+     * Runs on background thread to avoid ANR.
      */
     @PluginMethod
     public void decryptPhoto(PluginCall call) {
-        try {
-            String encPath = call.getString("encPath");
-            if (encPath == null) {
-                call.reject("Missing encPath");
-                return;
+        new Thread(() -> {
+            try {
+                String encPath = call.getString("encPath");
+                if (encPath == null) {
+                    call.reject("Missing encPath");
+                    return;
+                }
+
+                File encFile = new File(context.getFilesDir(), encPath);
+                byte[] plainBytes = decryptFile(encFile);
+
+                String base64 = Base64.encodeToString(plainBytes, Base64.NO_WRAP);
+                JSObject result = new JSObject();
+                result.put("base64", "data:image/jpeg;base64," + base64);
+                call.resolve(result);
+
+            } catch (Exception e) {
+                Log.e("PhotoEncryption", "decryptPhoto failed", e);
+                call.reject("Decryption failed: " + e.getMessage());
             }
-
-            File encFile = new File(context.getFilesDir(), encPath);
-            byte[] plainBytes = decryptFile(encFile);
-
-            String base64 = Base64.encodeToString(plainBytes, Base64.NO_WRAP);
-            JSObject result = new JSObject();
-            result.put("base64", "data:image/jpeg;base64," + base64);
-            call.resolve(result);
-
-        } catch (Exception e) {
-            Log.e("PhotoEncryption", "decryptPhoto failed", e);
-            call.reject("Decryption failed: " + e.getMessage());
-        }
+        }).start();
     }
 
     /**
      * Delete a file.
+     * Runs on background thread to avoid ANR.
      */
     @PluginMethod
     public void deleteFile(PluginCall call) {
-        try {
-            String filePath = call.getString("filePath");
-            if (filePath == null) {
-                call.reject("Missing filePath");
-                return;
+        new Thread(() -> {
+            try {
+                String filePath = call.getString("filePath");
+                if (filePath == null) {
+                    call.reject("Missing filePath");
+                    return;
+                }
+                File file = new File(context.getFilesDir(), filePath);
+                boolean deleted = file.delete();
+                JSObject result = new JSObject();
+                result.put("deleted", deleted);
+                call.resolve(result);
+            } catch (Exception e) {
+                call.reject("Delete failed: " + e.getMessage());
             }
-            File file = new File(context.getFilesDir(), filePath);
-            boolean deleted = file.delete();
-            JSObject result = new JSObject();
-            result.put("deleted", deleted);
-            call.resolve(result);
-        } catch (Exception e) {
-            call.reject("Delete failed: " + e.getMessage());
-        }
+        }).start();
     }
 
     /**
