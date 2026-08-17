@@ -46,8 +46,8 @@ jobs:
 
       - name: Set version code
         run: |
-          sed -i 's/versionCode [0-9]*/versionCode 15/' android/app/build.gradle
-          sed -i 's/versionName "[^"]*"/versionName "3.1.4"/' android/app/build.gradle
+          sed -i 's/versionCode [0-9]*/versionCode 16/' android/app/build.gradle
+          sed -i 's/versionName "[^"]*"/versionName "3.1.5"/' android/app/build.gradle
           grep -E "versionCode|versionName" android/app/build.gradle | head -2
 
       - name: Build Release APK
