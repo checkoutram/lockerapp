@@ -16,6 +16,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Register custom plugins BEFORE super.onCreate()
+        registerPlugin(PhotoEncryptionPlugin.class);
+
         // Edge-to-edge must be set before super.onCreate()
         requestEdgeToEdgeEnforcement();
         super.onCreate(savedInstanceState);
