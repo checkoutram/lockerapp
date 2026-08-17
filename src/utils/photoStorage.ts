@@ -75,38 +75,19 @@ export async function savePhoto(
   const baseName = `${itemId}_${index}_${ts}`;
 
   if (Capacitor.isNativePlatform()) {
-    // Write raw bytes temporarily, then encrypt
-    const tempPath = `${PHOTO_DIR}/${baseName}.tmp`;
     const encPath = `${PHOTO_DIR}/${baseName}.enc`;
 
     // Strip data URI prefix if present
     const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
 
-    await Filesystem.writeFile({
-      path: tempPath,
-      data: cleanBase64,
-      directory: Directory.Data,
-      encoding: Encoding.Base64,
-    });
-
-    // Encrypt via native plugin
+    // Encrypt via native plugin — pass base64 data directly, native decodes to binary
     const result = await PhotoEncryption.encryptPhoto({
-      inputPath: tempPath,
+      base64Data: cleanBase64,
       outputPath: encPath,
     });
 
     if (!result.success) {
       throw new Error('Encryption failed');
-    }
-
-    // Delete temp file
-    try {
-      await Filesystem.deleteFile({
-        path: tempPath,
-        directory: Directory.Data,
-      });
-    } catch {
-      // ignore
     }
 
     // Cache the decrypted image for this session (use path without .enc as key)

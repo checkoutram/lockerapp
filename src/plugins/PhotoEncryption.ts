@@ -29,7 +29,7 @@ export interface RestoreResult {
 }
 
 export interface PhotoEncryptionPlugin {
-  encryptPhoto(options: { inputPath: string; outputPath: string }): Promise<EncryptPhotoResult>;
+  encryptPhoto(options: { base64Data: string; outputPath: string }): Promise<EncryptPhotoResult>;
   decryptPhoto(options: { encPath: string }): Promise<DecryptPhotoResult>;
   deleteFile(options: { filePath: string }): Promise<DeleteFileResult>;
   migrateExistingPhotos(): Promise<MigrationResult>;
