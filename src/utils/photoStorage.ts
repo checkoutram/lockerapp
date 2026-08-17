@@ -86,7 +86,7 @@ export async function savePhoto(
       path: tempPath,
       data: cleanBase64,
       directory: Directory.Data,
-      encoding: Encoding.UTF8,
+      encoding: Encoding.Base64,
     });
 
     // Encrypt via native plugin
@@ -109,10 +109,11 @@ export async function savePhoto(
       // ignore
     }
 
-    // Cache the decrypted image for this session
-    memoryCache.set(encPath, base64Data);
+    // Cache the decrypted image for this session (use path without .enc as key)
+    const pathKey = `${PHOTO_DIR}/${baseName}`;
+    memoryCache.set(pathKey, base64Data);
 
-    return `${PHOTO_DIR}/${baseName}`;
+    return pathKey;
   } else {
     // Web fallback: store as base64 directly (no encryption on web)
     const fileName = `${baseName}.jpg`;
