@@ -1,12 +1,19 @@
 import { useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
+import { SecureStore } from '@/utils/storage';
 
 export default function SplashScreen() {
   const { navigate } = useApp();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      navigate('auth');
+    const timer = setTimeout(async () => {
+      // Check if PIN exists — if not, this is a first-time user
+      const pin = await SecureStore.getItemAsync('pin');
+      if (!pin) {
+        navigate('setup');
+      } else {
+        navigate('auth');
+      }
     }, 2000);
     return () => clearTimeout(timer);
   }, [navigate]);

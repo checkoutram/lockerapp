@@ -4,6 +4,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import JSZip from 'jszip';
 import type { LockerItem, SecretQuestions, Locker } from '@/types';
 import { savePhoto, deletePhoto, getPhotoUrl } from './photoStorage';
+import { APP_VERSION } from './version';
 
 // Synchronous native check — same as working build 6
 const isNative = Capacitor.isNativePlatform();
@@ -151,12 +152,12 @@ export async function deleteAllItems(): Promise<void> {
   const items = await getItems();
   for (const item of items) {
     for (const photoRef of item.photos || []) {
-      if (photoRef.startsWith('file://')) {
+      if (photoRef && !photoRef.startsWith('data:')) {
         await deletePhoto(photoRef);
       }
     }
     for (const photoRef of item.billPhotos || []) {
-      if (photoRef.startsWith('file://')) {
+      if (photoRef && !photoRef.startsWith('data:')) {
         await deletePhoto(photoRef);
       }
     }
@@ -312,11 +313,12 @@ export async function exportFullBackup(): Promise<string> {
       const embeddedPhotos: string[] = [];
       for (const photoRef of item.photos) {
         try {
-          if (photoRef.startsWith('file://')) {
+          if (photoRef.startsWith('data:')) {
+            embeddedPhotos.push(photoRef);
+          } else if (photoRef && !photoRef.startsWith('data:')) {
+            // Handles both file:// and relative paths (photos/item_123)
             const dataUri = await getPhotoUrl(photoRef);
             if (dataUri) embeddedPhotos.push(dataUri);
-          } else if (photoRef.startsWith('data:')) {
-            embeddedPhotos.push(photoRef);
           }
         } catch {
           // Skip unreadable photos
@@ -330,11 +332,11 @@ export async function exportFullBackup(): Promise<string> {
       const embeddedBillPhotos: string[] = [];
       for (const photoRef of item.billPhotos) {
         try {
-          if (photoRef.startsWith('file://')) {
+          if (photoRef.startsWith('data:')) {
+            embeddedBillPhotos.push(photoRef);
+          } else if (photoRef && !photoRef.startsWith('data:')) {
             const dataUri = await getPhotoUrl(photoRef);
             if (dataUri) embeddedBillPhotos.push(dataUri);
-          } else if (photoRef.startsWith('data:')) {
-            embeddedBillPhotos.push(photoRef);
           }
         } catch {
           // Skip unreadable photos
@@ -347,7 +349,7 @@ export async function exportFullBackup(): Promise<string> {
   const backup: VLockerBackup = {
     version: '1.0',
     exportedAt: new Date().toISOString(),
-    appVersion: '3.0.0',
+    appVersion: APP_VERSION,
     lockers,
     items: exportItems,
     secretQuestions,
@@ -470,6 +472,16 @@ export async function clearAllData(): Promise<void> {
   await Prefs.remove(LOCKERS_KEY);
   await Prefs.remove(MIGRATION_KEY);
   await Prefs.remove(APP_VERSION_KEY);
+  // Also clear encrypted photo migration flag
+  await Prefs.remove('vlocker_enc_migration_done');
+  // Clear all photos from disk
+  if (isNative) {
+    try {
+      await Filesystem.rmdir({ path: 'photos', directory: Directory.Data, recursive: true });
+    } catch {
+      // ignore if directory doesn't exist
+    }
+  }
 }
 
 // ---- SESSION ----
@@ -694,10 +706,11 @@ export async function exportFullBackupZip(): Promise<{ blob: Blob; skippedPhotos
         const photoRef = item.photos[i];
         let base64Data = '';
         try {
-          if (photoRef.startsWith('file://')) {
-            base64Data = await getPhotoUrl(photoRef) || '';
-          } else if (photoRef.startsWith('data:')) {
+          if (photoRef.startsWith('data:')) {
             base64Data = photoRef;
+          } else if (photoRef && !photoRef.startsWith('data:')) {
+            // Handles both file:// and relative paths
+            base64Data = await getPhotoUrl(photoRef) || '';
           }
         } catch {
           skippedPhotos++;
@@ -720,10 +733,10 @@ export async function exportFullBackupZip(): Promise<{ blob: Blob; skippedPhotos
         const photoRef = item.billPhotos[i];
         let base64Data = '';
         try {
-          if (photoRef.startsWith('file://')) {
-            base64Data = await getPhotoUrl(photoRef) || '';
-          } else if (photoRef.startsWith('data:')) {
+          if (photoRef.startsWith('data:')) {
             base64Data = photoRef;
+          } else if (photoRef && !photoRef.startsWith('data:')) {
+            base64Data = await getPhotoUrl(photoRef) || '';
           }
         } catch {
           skippedPhotos++;
@@ -744,7 +757,7 @@ export async function exportFullBackupZip(): Promise<{ blob: Blob; skippedPhotos
   const backup = {
     version: '2.0',
     exportedAt: new Date().toISOString(),
-    appVersion: '3.0.0',
+    appVersion: APP_VERSION,
     format: 'zip',
     lockers,
     items: exportItems,
