@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Home, Settings, Trash2, LogOut, Shield, ChevronRight, Building2 } from 'lucide-react';
 import { wipeAllData } from '../utils/storage';
 import { useApp } from '@/context/AppContext';
+import { APP_VERSION } from '@/utils/version';
 
 interface MenuDrawerProps {
   onClose: () => void;
@@ -68,7 +69,7 @@ export function MenuDrawer({ onClose }: MenuDrawerProps) {
             <Shield className="w-3.5 h-3.5 text-[#5ED6A5]" />
             <span>Your data stays on your device</span>
           </div>
-          <p className="text-[10px] text-[#667487] mt-2">Version 3.0.0</p>
+          <p className="text-[10px] text-[#667487] mt-2">Version {APP_VERSION}</p>
         </div>
       </div>
 
